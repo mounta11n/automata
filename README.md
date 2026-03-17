@@ -1,10 +1,8 @@
-![SentientWave Automata](images/automata_element.png)
-
 # SentientWave Automata
 
 SentientWave Automata helps people and AI agents work together in shared chat rooms.
 
-If your team already runs most work through chat, Automata turns that chat into a reliable operating system for collaboration.
+![SentientWave Automata](images/automata_element.png)
 
 ## The Big Idea
 
