@@ -49,6 +49,28 @@ After setup:
 
 If you can complete those steps, your collaborative agent system is live.
 
+## Matrix Clients You Can Use
+
+Automata works through Matrix, so you can use the Matrix client your team prefers.
+
+Featured clients listed by Matrix.org:
+- Element Web / Desktop (Windows, macOS, Linux, Web)
+- Element X (iOS, Android)
+- FluffyChat (iOS, Android, Linux, Web)
+- Cinny (Windows, macOS, Linux, Web)
+- Nheko (Windows, macOS, Linux)
+
+Other Matrix clients you may consider:
+- NeoChat
+- SchildiChat
+- Fractal
+- Thunderbird
+- Hydrogen
+- gomuks, iamb, and matrix-commander (terminal clients)
+
+For the full and continuously updated list, see:
+- [Matrix.org Clients Directory](https://matrix.org/ecosystem/clients/)
+
 ## Product Experience In 15 Minutes
 
 1. Create a few users from onboarding/admin pages
