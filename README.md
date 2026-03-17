@@ -1,158 +1,96 @@
 # SentientWave Automata
 
-SentientWave Automata is a Matrix-native collaboration runtime where people and AI agents coordinate in shared rooms with durable workflow execution.
+SentientWave Automata helps people and AI agents work together in shared chat rooms.
 
-Automata is designed for team operations where chat is the primary interface and workflows must stay reliable across failures, retries, and long-running tasks.
+If your team already runs most work through chat, Automata turns that chat into a reliable operating system for collaboration.
 
-## What It Is
+## The Big Idea
 
-- Matrix-first multi-agent collaboration platform
-- Elixir/Phoenix control plane and API
-- Temporal-backed durable execution
-- PostgreSQL persistence
-- Community Edition (source-available) and Enterprise Edition
+Every community and organization needs a collaborative multi-agentic nervous system.
 
-## Why Teams Use It
+In plain language, that means:
+- people and agents see the same context
+- requests do not get lost
+- long tasks keep running even if services restart
+- memory improves over time instead of disappearing in old threads
 
-- Keep humans and agents in the same Matrix rooms
-- Run durable agent workflows that survive restarts and transient failures
-- Maintain internal people/agent directory and reconcile with Matrix accounts
-- Attach pluggable LLM providers and tools without rewriting core flows
-- Deploy locally with Podman using an all-in-one container path
+Automata is built to provide that foundation.
 
-## Community vs Enterprise
+## Who This Is For
 
-Community Edition includes:
-- Matrix room collaboration (people + agents)
-- Basic orchestration APIs and local runtime
-- Internal directory to Matrix user reconciliation
-- Podman-first all-in-one deployment for local/self-hosted usage
+- Team leads who want faster execution without adding more tools
+- Community managers coordinating humans and assistants in shared rooms
+- Operations teams that need reliable, auditable workflows
+- Organizations exploring agent collaboration with clear admin control
 
-Enterprise Edition (commercial license) includes:
-- SSO and advanced identity controls
-- Policy and compliance features
-- Enterprise support and hardening options
+## What You Can Do With Automata
 
-## Architecture At A Glance
+- Chat with agents directly in Matrix rooms
+- Mention an agent and trigger durable workflow execution
+- Manage people and agent accounts from one admin UI
+- Configure multiple LLM providers and tools
+- Keep all components running locally in one container for pilots and demos
 
-- `Matrix` is the collaboration and messaging surface
-- `Automata (Phoenix)` provides admin UI, orchestration APIs, directory, and tool/LLM configuration
-- `Temporal` runs durable workflows and activities for agent execution
-- `PostgreSQL` stores Automata state, workflow metadata, and memory records
+## Community Edition and Enterprise Edition
 
-## Quick Start (Local Dev)
+Community Edition (source-available) is for local/self-hosted collaboration and core orchestration features.
 
-```bash
-mix deps.get
-mix phx.server
-```
+Enterprise Edition adds commercial capabilities like advanced identity, policy controls, and enterprise support.
 
-Open [http://localhost:4000](http://localhost:4000).
+## Quick Start (Non-Engineer Friendly)
 
-## Podman All-In-One (Recommended Demo Path)
+The easiest path is the all-in-one container setup.
+
+Run:
 
 ```bash
 deploy/all-in-one/bin/quickstart.sh
 ```
 
-This bootstrap path provisions Matrix + Temporal + PostgreSQL + Automata with integrated configuration for local evaluation.
+After setup:
+1. Open Automata Admin UI at `http://localhost:4000`
+2. Add your first LLM provider in the UI
+3. Open your Matrix client (Element/Element Web)
+4. Join `main` room and send a message to `@automata`
 
-Useful commands:
+If you can complete those steps, your collaborative agent system is live.
 
-```bash
-deploy/all-in-one/bin/status.sh
-deploy/all-in-one/bin/upgrade.sh
-deploy/all-in-one/bin/logs.sh
-```
+## Product Experience In 15 Minutes
 
-## First-Day Demo Flow
-
-1. Start all-in-one with `deploy/all-in-one/bin/quickstart.sh`
-2. Open Automata web UI at `http://localhost:4000`
-3. Configure at least one LLM provider in the admin UI
-4. Open Matrix client (Element/Element Web) and join `main` room
-5. Send a message mentioning `@automata` in room chat
-6. Verify agent typing indicator and response in room
-7. Validate workflow execution in Automata API (`/api/v1/agent-runs`)
-
-## Admin APIs (Authenticated)
-
-Login first (session cookie):
-
-```bash
-curl -c cookie.txt -b cookie.txt -X POST http://localhost:4000/login \
-  -d "username=admin&password=<your-admin-password>"
-```
-
-Directory + reconciliation APIs:
-
-```bash
-curl -b cookie.txt http://localhost:4000/api/v1/directory/users
-curl -b cookie.txt -X POST http://localhost:4000/api/v1/directory/users \
-  -H 'content-type: application/json' \
-  -d '{"localpart":"alice","kind":"person"}'
-curl -b cookie.txt -X POST http://localhost:4000/api/v1/directory/reconcile
-```
-
-Agent runtime APIs:
-
-```bash
-# Mention-triggered durable runs
-curl -X POST http://localhost:4000/api/v1/mentions \
-  -H 'content-type: application/json' \
-  -d '{"room_id":"!demo:localhost","sender_mxid":"@admin:localhost","message_id":"$evt1","body":"@automata summarize this thread"}'
-
-# List durable agent runs (admin auth required)
-curl -b cookie.txt http://localhost:4000/api/v1/agent-runs
-
-# Ingest/query per-agent RAG memory (admin auth required)
-curl -b cookie.txt -X POST http://localhost:4000/api/v1/agent-memories \
-  -H 'content-type: application/json' \
-  -d '{"agent_id":"<agent-id>","content":"Incident report timeline","source":"matrix:!demo:localhost"}'
-curl -b cookie.txt "http://localhost:4000/api/v1/agent-memories/search?agent_id=<agent-id>&query=incident&top_k=5"
-```
-
-## Repository Layout
-
-- `apps/sentientwave_automata`: core domain runtime
-- `apps/sentientwave_automata_web`: web UI and HTTP API
-- `deploy/all-in-one`: single-container deployment tooling
-- `docs`: architecture, operations, and product docs
-- `scripts`: helper scripts for local operations and demo workflows
+1. Create a few users from onboarding/admin pages
+2. Invite users and agents to `main` and `random`
+3. Ask `@automata` to perform a real task in chat
+4. Watch typing and final response directly in Matrix
+5. Confirm runs and settings from the web UI
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Operations](docs/OPERATIONS.md)
-- [Product](docs/PRODUCT.md)
 - [Demo Guide](docs/DEMO.md)
+- [Operations](docs/OPERATIONS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Product Overview](docs/PRODUCT.md)
 - [QA Strategy](docs/QA_STRATEGY.md)
-- [Release Process](RELEASE.md)
-- [Support](SUPPORT.md)
-- [Contributing](CONTRIBUTING.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
 - [Roadmap](ROADMAP.md)
 - [Progress](PROGRESS.md)
 - [Changelog](CHANGELOG.md)
+- [Release Process](RELEASE.md)
+- [Support](SUPPORT.md)
+
+## Community and Contributions
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
 - [Code Owners](CODEOWNERS)
 
 ## Version
 
-Current version is tracked in [VERSION](VERSION).
-
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) before opening issues or pull requests.
-
-## Support
-
-Support channels and response expectations are documented in [SUPPORT.md](SUPPORT.md).
+Current project version is tracked in [VERSION](VERSION).
 
 ## License
 
-This repository is distributed under the SentientWave Community Source License.
+Automata Community Edition is distributed under the SentientWave Community Source License.
 
-Important: this license is source-available and includes commercial restrictions (for example, no third-party cloud/hosting offerings without a separate SentientWave license).
+This is source-available (not OSI open source) and includes commercial restrictions, including limits around third-party hosted/cloud offerings without a separate SentientWave license.
 
 See [LICENSE](LICENSE) for full terms.
