@@ -83,6 +83,111 @@ defmodule SentientwaveAutomataWeb.PageHTML do
     """
   end
 
+  def trace_status_class("ok"), do: "is-ok"
+  def trace_status_class("error"), do: "is-issue"
+  def trace_status_class(_), do: "is-neutral"
+
+  def format_timestamp(%DateTime{} = timestamp) do
+    Calendar.strftime(timestamp, "%Y-%m-%d %H:%M:%S UTC")
+  end
+
+  def format_timestamp(_), do: "not recorded"
+
+  def trace_requester_name(trace) do
+    cond do
+      present?(trace.requester_display_name) -> trace.requester_display_name
+      present?(trace.requester_localpart) -> trace.requester_localpart
+      present?(trace.requester_mxid) -> trace.requester_mxid
+      true -> "Unknown requester"
+    end
+  end
+
+  def trace_requester_meta(trace) do
+    [trace.requester_kind, trace.requester_mxid]
+    |> Enum.filter(&present?/1)
+    |> Enum.join(" · ")
+  end
+
+  def trace_preview(trace) do
+    request_preview = request_message_preview(trace)
+    response_preview = get_in(trace.response_payload || %{}, ["content"])
+    error_preview = get_in(trace.error_payload || %{}, ["reason"])
+
+    cond do
+      present?(request_preview) -> truncate_text(request_preview, 140)
+      present?(response_preview) -> truncate_text(response_preview, 140)
+      present?(error_preview) -> truncate_text(error_preview, 140)
+      true -> "No preview available."
+    end
+  end
+
+  def trace_duration(trace) do
+    case {trace.requested_at, trace.completed_at} do
+      {%DateTime{} = requested_at, %DateTime{} = completed_at} ->
+        diff = DateTime.diff(completed_at, requested_at, :millisecond)
+        "#{max(diff, 0)} ms"
+
+      _ ->
+        "n/a"
+    end
+  end
+
+  def pretty_json(nil), do: "No payload recorded."
+
+  def pretty_json(payload) do
+    Jason.encode!(payload, pretty: true)
+  rescue
+    _ -> inspect(payload, pretty: true, limit: :infinity)
+  end
+
+  def active_designation_count(skill) do
+    skill.designations
+    |> Enum.count(&(&1.status == :active))
+  end
+
+  def designation_status_class(:active), do: "is-ok"
+  def designation_status_class(:rolled_back), do: "is-neutral"
+  def designation_status_class(_), do: "is-neutral"
+
+  def skill_summary(skill) do
+    skill.metadata
+    |> Map.get("summary", "")
+    |> case do
+      value when is_binary(value) and value != "" -> value
+      _ -> "No summary added yet."
+    end
+  end
+
+  def skill_tags(skill) do
+    skill.metadata
+    |> Map.get("tags", [])
+    |> case do
+      tags when is_list(tags) -> tags
+      _ -> []
+    end
+  end
+
+  def skill_tools(skill) do
+    skill.metadata
+    |> Map.get("tools", [])
+    |> case do
+      tools when is_list(tools) -> tools
+      _ -> []
+    end
+  end
+
+  def designation_agent_name(designation) do
+    agent = designation.agent
+    display_name = agent && agent.display_name
+    slug = agent && agent.slug
+
+    cond do
+      present?(display_name) -> display_name
+      present?(slug) -> slug
+      true -> "Unknown agent"
+    end
+  end
+
   defp service_class(status) when is_binary(status) do
     cond do
       String.starts_with?(status, "ok") -> "is-ok"
@@ -90,6 +195,36 @@ defmodule SentientwaveAutomataWeb.PageHTML do
       true -> "is-issue"
     end
   end
+
+  defp request_message_preview(trace) do
+    trace.request_payload
+    |> case do
+      %{"messages" => messages} when is_list(messages) ->
+        messages
+        |> Enum.reverse()
+        |> Enum.find_value(fn
+          %{"role" => "user", "content" => content} when is_binary(content) -> content
+          _ -> nil
+        end)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp truncate_text(text, max_length) when is_binary(text) do
+    trimmed = String.trim(text)
+
+    if String.length(trimmed) > max_length do
+      String.slice(trimmed, 0, max_length - 1) <> "…"
+    else
+      trimmed
+    end
+  end
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(nil), do: false
+  defp present?(_), do: true
 
   embed_templates "page_html/*"
 end
