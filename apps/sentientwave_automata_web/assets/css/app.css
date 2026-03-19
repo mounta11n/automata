@@ -688,6 +688,134 @@
   font-size: 0.9rem;
 }
 
+.sw-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.sw-kpi-card,
+.sw-payload-card {
+  padding: 0.95rem 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--sw-border);
+  background: var(--sw-panel-soft);
+}
+
+.sw-kpi-label {
+  margin: 0;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-muted);
+}
+
+.sw-kpi-value {
+  margin: 0.6rem 0 0;
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--sw-text);
+}
+
+.sw-kpi-value-small {
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.sw-kpi-copy {
+  margin: 0.5rem 0 0;
+  color: var(--sw-muted);
+  font-size: 0.86rem;
+}
+
+.sw-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 0.95rem;
+}
+
+.sw-filter-grid .fieldset {
+  margin-bottom: 0;
+}
+
+.sw-filter-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding-bottom: 0.12rem;
+  grid-column: 1 / -1;
+}
+
+.sw-trace-preview {
+  max-width: 440px;
+  color: var(--sw-muted-strong);
+  white-space: normal;
+}
+
+.sw-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.sw-detail-list {
+  margin: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sw-detail-list div {
+  display: grid;
+  gap: 0.22rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--sw-border-soft);
+}
+
+.sw-detail-list div:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sw-detail-list dt {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sw-muted);
+}
+
+.sw-detail-list dd {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--sw-text);
+  word-break: break-word;
+}
+
+.sw-payload-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sw-code-block {
+  margin: 0.85rem 0 0;
+  padding: 1rem;
+  border-radius: 0.82rem;
+  border: 1px solid var(--sw-border);
+  background: var(--sw-panel);
+  color: var(--sw-text);
+  font-family:
+    "SFMono-Regular",
+    "JetBrains Mono",
+    "Menlo",
+    monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .sw-launch-kit-header h3 {
   margin: 0;
   font-size: 1rem;
@@ -851,6 +979,9 @@ html[data-sw-theme-mode="dark"] .sw-theme-option[data-theme-mode="dark"] {
 
   .sw-grid-3,
   .sw-grid-2,
+  .sw-kpi-grid,
+  .sw-detail-grid,
+  .sw-filter-grid,
   .sw-form-grid,
   .sw-qr-grid {
     grid-template-columns: 1fr;

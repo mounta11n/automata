@@ -202,12 +202,33 @@ defmodule SentientwaveAutomata.Agents do
   @spec list_llm_traces(keyword()) :: [LLMTrace.t()]
   def list_llm_traces(opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
+    filters = Keyword.get(opts, :filters, %{})
 
     Repo.all(
-      from t in LLMTrace,
+      from(t in LLMTrace,
         preload: [:agent, :run, :mention, :provider_config],
         order_by: [desc: t.requested_at, desc: t.inserted_at],
         limit: ^limit
+      )
+      |> apply_llm_trace_filters(filters)
+    )
+  end
+
+  @spec count_llm_traces(keyword()) :: non_neg_integer()
+  def count_llm_traces(opts \\ []) do
+    filters = Keyword.get(opts, :filters, %{})
+
+    LLMTrace
+    |> apply_llm_trace_filters(filters)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @spec get_llm_trace(binary()) :: LLMTrace.t() | nil
+  def get_llm_trace(id) when is_binary(id) do
+    Repo.one(
+      from t in LLMTrace,
+        where: t.id == ^id,
+        preload: [:agent, :run, :mention, :provider_config]
     )
   end
 
@@ -230,5 +251,62 @@ defmodule SentientwaveAutomata.Agents do
     end
     |> AgentWallet.changeset(Map.put(attrs, :agent_id, agent_id))
     |> Repo.insert_or_update()
+  end
+
+  defp apply_llm_trace_filters(query, filters) when is_map(filters) do
+    query
+    |> maybe_filter_llm_trace(:provider, fetch_filter(filters, :provider))
+    |> maybe_filter_llm_trace(:status, fetch_filter(filters, :status))
+    |> maybe_filter_llm_trace(:call_kind, fetch_filter(filters, :call_kind))
+    |> maybe_filter_llm_trace(:requester_kind, fetch_filter(filters, :requester_kind))
+    |> maybe_filter_llm_trace(:conversation_scope, fetch_filter(filters, :conversation_scope))
+    |> maybe_search_llm_traces(fetch_filter(filters, :q))
+  end
+
+  defp apply_llm_trace_filters(query, _filters), do: query
+
+  defp maybe_filter_llm_trace(query, _field, nil), do: query
+
+  defp maybe_filter_llm_trace(query, field_name, value) do
+    where(query, [t], field(t, ^field_name) == ^value)
+  end
+
+  defp maybe_search_llm_traces(query, nil), do: query
+
+  defp maybe_search_llm_traces(query, value) do
+    like = "%" <> value <> "%"
+
+    where(
+      query,
+      [t],
+      ilike(t.provider, ^like) or
+        ilike(t.model, ^like) or
+        ilike(fragment("coalesce(?, '')", t.requester_mxid), ^like) or
+        ilike(fragment("coalesce(?, '')", t.requester_display_name), ^like) or
+        ilike(fragment("coalesce(?, '')", t.requester_localpart), ^like) or
+        ilike(fragment("coalesce(?, '')", t.room_id), ^like) or
+        ilike(fragment("coalesce(?, '')", t.call_kind), ^like) or
+        ilike(fragment("coalesce(cast(? as text), '')", t.request_payload), ^like) or
+        ilike(fragment("coalesce(cast(? as text), '')", t.response_payload), ^like) or
+        ilike(fragment("coalesce(cast(? as text), '')", t.error_payload), ^like)
+    )
+  end
+
+  defp fetch_filter(filters, key) do
+    filters
+    |> Map.get(key, Map.get(filters, Atom.to_string(key)))
+    |> case do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      nil ->
+        nil
+
+      value ->
+        value
+    end
   end
 end

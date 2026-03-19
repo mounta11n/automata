@@ -42,6 +42,8 @@ defmodule SentientwaveAutomataWeb.Router do
     get "/settings/llm", PageController, :llm
     get "/settings/llm/providers/new", PageController, :new_llm_provider
     get "/settings/llm/providers/:id", PageController, :llm_provider
+    get "/observability/llm-traces", PageController, :llm_traces
+    get "/observability/llm-traces/:id", PageController, :llm_trace
     get "/settings/tools", PageController, :tools
     get "/settings/tools/new", PageController, :new_tool
     get "/settings/tools/:id", PageController, :tool

@@ -1,0 +1,154 @@
+<.admin_shell
+  flash={@flash}
+  title="LLM Trace Detail"
+  subtitle="One stored provider interaction with its normalized metadata, request payload, response payload, and error payload."
+  status={@status}
+  admin_user={@admin_user}
+  nav={@nav}
+>
+  <section class="sw-card">
+    <div class="sw-section-header">
+      <div>
+        <h2 class="sw-card-title">Trace Summary</h2>
+        <p class="sw-card-copy">
+          Review who triggered the call, where it happened, which provider handled it, and how the call finished.
+        </p>
+      </div>
+      <a href={~p"/observability/llm-traces"} class="sw-btn sw-btn-ghost">Back to Traces</a>
+    </div>
+
+    <div class="sw-kpi-grid mt-5">
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Provider</p>
+        <p class="sw-kpi-value sw-kpi-value-small">{@trace.provider}</p>
+        <p class="sw-kpi-copy">{@trace.model}</p>
+      </article>
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Status</p>
+        <p class="sw-kpi-value sw-kpi-value-small">{@trace.status}</p>
+        <p class="sw-kpi-copy">Call type: {@trace.call_kind}</p>
+      </article>
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Requester</p>
+        <p class="sw-kpi-value sw-kpi-value-small">{trace_requester_name(@trace)}</p>
+        <p class="sw-kpi-copy">{trace_requester_meta(@trace)}</p>
+      </article>
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Requested At</p>
+        <p class="sw-kpi-value sw-kpi-value-small">{format_timestamp(@trace.requested_at)}</p>
+        <p class="sw-kpi-copy">Duration: {trace_duration(@trace)}</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sw-detail-grid">
+    <article class="sw-card">
+      <h2 class="sw-card-title">Request Context</h2>
+      <dl class="sw-detail-list mt-5">
+        <div>
+          <dt>Trace ID</dt>
+          <dd>{@trace.id}</dd>
+        </div>
+        <div>
+          <dt>Agent ID</dt>
+          <dd>{@trace.agent_id || "not linked"}</dd>
+        </div>
+        <div>
+          <dt>Run ID</dt>
+          <dd>{@trace.run_id || "not linked"}</dd>
+        </div>
+        <div>
+          <dt>Mention ID</dt>
+          <dd>{@trace.mention_id || "not linked"}</dd>
+        </div>
+        <div>
+          <dt>Scope</dt>
+          <dd>{@trace.conversation_scope}</dd>
+        </div>
+        <div>
+          <dt>Room ID</dt>
+          <dd>{@trace.room_id || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Remote IP</dt>
+          <dd>{@trace.remote_ip || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Provider Config</dt>
+          <dd>
+            {if @trace.provider_config, do: @trace.provider_config.name, else: "not linked"}
+          </dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="sw-card">
+      <h2 class="sw-card-title">Requester Details</h2>
+      <dl class="sw-detail-list mt-5">
+        <div>
+          <dt>Requester ID</dt>
+          <dd>{@trace.requester_id || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Kind</dt>
+          <dd>{@trace.requester_kind || "unknown"}</dd>
+        </div>
+        <div>
+          <dt>Localpart</dt>
+          <dd>{@trace.requester_localpart || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>MXID</dt>
+          <dd>{@trace.requester_mxid || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Display Name</dt>
+          <dd>{@trace.requester_display_name || "not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Completed At</dt>
+          <dd>{format_timestamp(@trace.completed_at)}</dd>
+        </div>
+      </dl>
+    </article>
+  </section>
+
+  <section class="sw-card">
+    <div class="sw-section-header">
+      <div>
+        <h2 class="sw-card-title">Payloads</h2>
+        <p class="sw-card-copy">
+          Full stored payloads are shown below for debugging and later dataset curation.
+        </p>
+      </div>
+    </div>
+
+    <div class="sw-payload-grid mt-5">
+      <article class="sw-payload-card">
+        <div class="sw-subcard-header">
+          <h3>Request Payload</h3>
+          <span class="sw-pill">Sent to provider</span>
+        </div>
+        <pre class="sw-code-block">{pretty_json(@trace.request_payload)}</pre>
+      </article>
+
+      <article class="sw-payload-card">
+        <div class="sw-subcard-header">
+          <h3>Response Payload</h3>
+          <span class={["sw-pill", trace_status_class(@trace.status)]}>{@trace.status}</span>
+        </div>
+        <pre class="sw-code-block">{pretty_json(@trace.response_payload)}</pre>
+      </article>
+
+      <article class="sw-payload-card">
+        <div class="sw-subcard-header">
+          <h3>Error Payload</h3>
+          <span class={["sw-pill", @trace.error_payload && "is-issue"]}>
+            {if @trace.error_payload, do: "Present", else: "None"}
+          </span>
+        </div>
+        <pre class="sw-code-block">{pretty_json(@trace.error_payload)}</pre>
+      </article>
+    </div>
+  </section>
+</.admin_shell>
