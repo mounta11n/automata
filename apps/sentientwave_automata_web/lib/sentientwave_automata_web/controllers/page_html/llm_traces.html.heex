@@ -1,0 +1,196 @@
+<.admin_shell
+  flash={@flash}
+  title="LLM Trace Explorer"
+  subtitle="Inspect provider requests and responses with filters built for debugging, audits, and future tuning work."
+  status={@status}
+  admin_user={@admin_user}
+  nav={@nav}
+>
+  <section class="sw-card">
+    <div class="sw-section-header">
+      <div>
+        <h2 class="sw-card-title">Trace Coverage</h2>
+        <p class="sw-card-copy">
+          Every provider call is stored separately, including planner and follow up synthesis calls.
+        </p>
+      </div>
+      <div class="sw-pill-list">
+        <span class="sw-pill">Visible traces: {@filtered_count}</span>
+        <span class="sw-pill">Total retained: {@total_count}</span>
+        <span class={["sw-pill", @error_count > 0 && "is-issue"]}>
+          Errors recorded: {@error_count}
+        </span>
+      </div>
+    </div>
+
+    <div class="sw-kpi-grid mt-5">
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Filtered traces</p>
+        <p class="sw-kpi-value">{@filtered_count}</p>
+        <p class="sw-kpi-copy">
+          Current result set after applying search and filter constraints.
+        </p>
+      </article>
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Total stored traces</p>
+        <p class="sw-kpi-value">{@total_count}</p>
+        <p class="sw-kpi-copy">
+          Useful for measuring how much provider telemetry is available for later analysis.
+        </p>
+      </article>
+      <article class="sw-kpi-card">
+        <p class="sw-kpi-label">Errored traces</p>
+        <p class="sw-kpi-value">{@error_count}</p>
+        <p class="sw-kpi-copy">
+          Failures are preserved too, so debugging and model quality work have full context.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="sw-card">
+    <div class="sw-section-header">
+      <div>
+        <h2 class="sw-card-title">Search and Filter</h2>
+        <p class="sw-card-copy">
+          Narrow by provider, status, requester type, call type, room scope, or a free text search across payloads.
+        </p>
+      </div>
+      <a href={~p"/observability/llm-traces"} class="sw-btn sw-btn-ghost">Reset Filters</a>
+    </div>
+
+    <.form
+      for={@filter_form}
+      id="llm-trace-filters"
+      method="get"
+      action={~p"/observability/llm-traces"}
+      class="sw-filter-grid mt-5"
+    >
+      <.input
+        field={@filter_form[:q]}
+        type="text"
+        label="Search"
+        placeholder="Requester, room, model, request text, response text, error payload"
+        class="sw-input"
+      />
+      <.input
+        field={@filter_form[:provider]}
+        type="select"
+        label="Provider"
+        options={@provider_filter_options}
+        class="sw-select"
+      />
+      <.input
+        field={@filter_form[:status]}
+        type="select"
+        label="Status"
+        options={@trace_status_options}
+        class="sw-select"
+      />
+      <.input
+        field={@filter_form[:call_kind]}
+        type="select"
+        label="Call Type"
+        options={@trace_call_kind_options}
+        class="sw-select"
+      />
+      <.input
+        field={@filter_form[:requester_kind]}
+        type="select"
+        label="Requester Kind"
+        options={@trace_requester_kind_options}
+        class="sw-select"
+      />
+      <.input
+        field={@filter_form[:conversation_scope]}
+        type="select"
+        label="Conversation Scope"
+        options={@trace_scope_options}
+        class="sw-select"
+      />
+
+      <div class="sw-filter-actions">
+        <button type="submit" class="sw-btn sw-btn-primary">Apply Filters</button>
+        <a href={~p"/observability/llm-traces"} class="sw-btn sw-btn-ghost">Clear</a>
+      </div>
+    </.form>
+
+    <div :if={@active_filters != []} class="sw-pill-list mt-4">
+      <span :for={label <- @active_filters} class="sw-pill is-neutral">{label}</span>
+    </div>
+  </section>
+
+  <section class="sw-card">
+    <div class="sw-section-header">
+      <div>
+        <h2 class="sw-card-title">Trace Results</h2>
+        <p class="sw-card-copy">
+          Showing the most recent matches first. Open a row for the full JSON payload and response body.
+        </p>
+      </div>
+      <span class="sw-pill">Limit: 150</span>
+    </div>
+
+    <div :if={@traces == []} class="sw-empty mt-5">
+      <h3>No traces match the current filters.</h3>
+      <p>Try broadening the search or clearing one of the filters above.</p>
+    </div>
+
+    <div :if={@traces != []} class="sw-table-wrap mt-5">
+      <table class="sw-data-table">
+        <thead>
+          <tr>
+            <th>Requested</th>
+            <th>Requester</th>
+            <th>Provider</th>
+            <th>Call</th>
+            <th>Scope</th>
+            <th>Status</th>
+            <th>Preview</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={trace <- @traces}>
+            <td>
+              <div class="sw-table-primary">{format_timestamp(trace.requested_at)}</div>
+              <div class="sw-table-secondary">Duration: {trace_duration(trace)}</div>
+            </td>
+            <td>
+              <div class="sw-table-primary">{trace_requester_name(trace)}</div>
+              <div class="sw-table-secondary">{trace_requester_meta(trace)}</div>
+              <div :if={trace.room_id} class="sw-table-secondary">Room: {trace.room_id}</div>
+            </td>
+            <td>
+              <div class="sw-table-primary">{trace.provider}</div>
+              <div class="sw-table-secondary">{trace.model}</div>
+            </td>
+            <td>
+              <div class="sw-table-primary">{trace.call_kind}</div>
+              <div class="sw-table-secondary">Sequence: {trace.sequence_index}</div>
+            </td>
+            <td>
+              <span class="sw-pill">{trace.conversation_scope}</span>
+            </td>
+            <td>
+              <span class={["sw-pill", trace_status_class(trace.status)]}>{trace.status}</span>
+            </td>
+            <td class="sw-trace-preview">
+              {trace_preview(trace)}
+            </td>
+            <td>
+              <div class="sw-table-actions">
+                <a
+                  href={~p"/observability/llm-traces/#{trace.id}"}
+                  class="sw-btn sw-btn-ghost sw-btn-small"
+                >
+                  Inspect
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</.admin_shell>

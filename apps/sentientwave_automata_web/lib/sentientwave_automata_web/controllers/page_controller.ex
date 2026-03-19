@@ -1,6 +1,7 @@
 defmodule SentientwaveAutomataWeb.PageController do
   use SentientwaveAutomataWeb, :controller
 
+  alias SentientwaveAutomata.Agents
   alias SentientwaveAutomata.Matrix.Onboarding.Artifacts
   alias SentientwaveAutomata.Settings
   alias SentientwaveAutomata.System.Status
@@ -17,6 +18,26 @@ defmodule SentientwaveAutomataWeb.PageController do
     {"Brave Internet Search", "brave_search"},
     {"System Directory Admin", "system_directory_admin"},
     {"Run Shell", "run_shell"}
+  ]
+  @trace_status_options [{"Any status", ""}, {"Successful", "ok"}, {"Errored", "error"}]
+  @trace_call_kind_options [
+    {"Any call type", ""},
+    {"Response", "response"},
+    {"Tool Planner", "tool_planner"},
+    {"Tool Response", "tool_response"},
+    {"Fallback Response", "response_fallback"}
+  ]
+  @trace_requester_kind_options [
+    {"Any requester", ""},
+    {"Human", "person"},
+    {"Agent", "agent"},
+    {"Unknown", "unknown"}
+  ]
+  @trace_scope_options [
+    {"Any scope", ""},
+    {"Room", "room"},
+    {"Private Message", "private_message"},
+    {"Unknown", "unknown"}
   ]
 
   def home(conn, _params), do: redirect(conn, to: ~p"/dashboard")
@@ -129,6 +150,51 @@ defmodule SentientwaveAutomataWeb.PageController do
           tool_options: @tool_options,
           tools: tools,
           tool: tool
+        )
+    end
+  end
+
+  def llm_traces(conn, params) do
+    status = Status.summary()
+    {trace_filters, trace_filter_form} = trace_filters_from_params(params)
+    traces = Agents.list_llm_traces(filters: trace_filters, limit: 150)
+    filtered_count = Agents.count_llm_traces(filters: trace_filters)
+    total_count = Agents.count_llm_traces()
+    active_filters = active_trace_filters(trace_filters)
+
+    render(conn, :llm_traces,
+      status: status,
+      admin_user: AdminAuth.expected_username(),
+      nav: nav("llm_traces"),
+      traces: traces,
+      filtered_count: filtered_count,
+      total_count: total_count,
+      error_count: Agents.count_llm_traces(filters: Map.put(trace_filters, :status, "error")),
+      filter_form: trace_filter_form,
+      active_filters: active_filters,
+      provider_filter_options: provider_filter_options(),
+      trace_status_options: @trace_status_options,
+      trace_call_kind_options: @trace_call_kind_options,
+      trace_requester_kind_options: @trace_requester_kind_options,
+      trace_scope_options: @trace_scope_options
+    )
+  end
+
+  def llm_trace(conn, %{"id" => id}) do
+    status = Status.summary()
+
+    case Agents.get_llm_trace(id) do
+      nil ->
+        conn
+        |> put_flash(:error, "LLM trace not found.")
+        |> redirect(to: ~p"/observability/llm-traces")
+
+      trace ->
+        render(conn, :llm_trace,
+          status: status,
+          admin_user: AdminAuth.expected_username(),
+          nav: nav("llm_traces"),
+          trace: trace
         )
     end
   end
@@ -330,6 +396,54 @@ defmodule SentientwaveAutomataWeb.PageController do
     )
   end
 
+  defp trace_filters_from_params(params) do
+    raw = Map.get(params, "filters", %{})
+
+    form_filters = %{
+      "q" => fetch_trace_filter(raw, "q"),
+      "provider" => fetch_trace_filter(raw, "provider"),
+      "status" => fetch_trace_filter(raw, "status"),
+      "call_kind" => fetch_trace_filter(raw, "call_kind"),
+      "requester_kind" => fetch_trace_filter(raw, "requester_kind"),
+      "conversation_scope" => fetch_trace_filter(raw, "conversation_scope")
+    }
+
+    query_filters =
+      form_filters
+      |> Enum.reduce(%{}, fn {key, value}, acc ->
+        case String.trim(value) do
+          "" -> acc
+          trimmed -> Map.put(acc, key, trimmed)
+        end
+      end)
+
+    {query_filters, Phoenix.Component.to_form(form_filters, as: :filters)}
+  end
+
+  defp active_trace_filters(filters) do
+    labels = %{
+      "q" => "Search",
+      "provider" => "Provider",
+      "status" => "Status",
+      "call_kind" => "Call Type",
+      "requester_kind" => "Requester",
+      "conversation_scope" => "Scope"
+    }
+
+    Enum.reduce(filters, [], fn {key, value}, acc ->
+      if value in [nil, ""] do
+        acc
+      else
+        ["#{Map.get(labels, key, key)}: #{value}" | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp provider_filter_options do
+    [{"Any provider", ""} | @provider_options]
+  end
+
   defp nav(active) do
     [
       %{id: "dashboard", label: "Dashboard", href: "/dashboard", active: active == "dashboard"},
@@ -340,6 +454,12 @@ defmodule SentientwaveAutomataWeb.PageController do
         active: active == "onboarding"
       },
       %{id: "llm", label: "LLM Providers", href: "/settings/llm", active: active == "llm"},
+      %{
+        id: "llm_traces",
+        label: "LLM Traces",
+        href: "/observability/llm-traces",
+        active: active == "llm_traces"
+      },
       %{id: "tools", label: "Tools", href: "/settings/tools", active: active == "tools"}
     ]
   end
@@ -413,4 +533,11 @@ defmodule SentientwaveAutomataWeb.PageController do
 
   defp token_configured?(token) when is_binary(token), do: String.trim(token) != ""
   defp token_configured?(_), do: false
+
+  defp fetch_trace_filter(filters, key) do
+    filters
+    |> Map.get(key, "")
+    |> to_string()
+    |> String.trim()
+  end
 end
