@@ -1,6 +1,6 @@
 # SentientWave Automata
 
-[![Website](https://img.shields.io/badge/website-sentientwave.com-111827?style=flat-square&logo=safari&logoColor=white)](https://sentientwave.com) [![Version](https://img.shields.io/badge/version-v0.2.9--ce-0A7B83?style=flat-square)](https://github.com/sentientwave/automata/releases/tag/v0.2.9-ce)
+[![Website](https://img.shields.io/badge/website-sentientwave.com-111827?style=flat-square&logo=safari&logoColor=white)](https://sentientwave.com) [![Version](https://img.shields.io/badge/version-v0.2.10--ce-0A7B83?style=flat-square)](https://github.com/sentientwave/automata/releases/tag/v0.2.10-ce)
 
 SentientWave Automata helps people and AI agents work together in shared chat rooms.
 
