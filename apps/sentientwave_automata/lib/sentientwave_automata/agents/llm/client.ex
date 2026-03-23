@@ -5,6 +5,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
 
   require Logger
   alias SentientwaveAutomata.Agents
+  alias SentientwaveAutomata.Agents.DeepResearch
   alias SentientwaveAutomata.Agents.LLM.TraceRecorder
   alias SentientwaveAutomata.Agents.Runtime
   alias SentientwaveAutomata.Agents.Tools.Executor
@@ -14,54 +15,232 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
 
   @spec generate_response(keyword()) :: {:ok, String.t()} | {:error, term()}
   def generate_response(opts) do
-    effective = Settings.llm_provider_effective()
-    agent_slug = Keyword.get(opts, :agent_slug, "automata")
-    user_input = Keyword.get(opts, :user_input, "") |> to_string() |> String.trim()
-    provider = Keyword.get(opts, :provider, effective.provider)
-    model = Keyword.get(opts, :model, effective.model)
-    timeout_seconds = Keyword.get(opts, :timeout_seconds, effective.timeout_seconds || 600)
-    agent_id = Keyword.get(opts, :agent_id)
-    context_text = Keyword.get(opts, :context_text, "") |> to_string() |> String.trim()
-    trace_context = Keyword.get(opts, :trace_context, %{})
-    constitution_snapshot = Keyword.get(opts, :constitution_snapshot)
+    with {:ok, plan} <- plan_tool_calls(opts) do
+      case Map.get(plan, :tool_calls, []) do
+        [] ->
+          generate_response_without_tools(opts)
 
-    constitution_prompt_text =
-      Keyword.get(opts, :constitution_prompt_text) ||
-        Runtime.constitution_prompt_text(constitution_snapshot)
+        tool_calls ->
+          case execute_tool_calls(Keyword.get(opts, :agent_id), tool_calls) do
+            {:ok, tool_context} when tool_context != [] ->
+              synthesize_tool_response(opts, tool_context)
 
-    provider_opts =
-      [
-        model: model,
-        base_url: effective.base_url,
-        api_key: effective.api_token,
-        timeout_seconds: timeout_seconds,
-        agent_id: agent_id,
-        user_input: user_input,
-        room_id: Keyword.get(opts, :room_id)
-      ]
-      |> Keyword.put(:trace_context, trace_context)
-      |> Keyword.put(:provider, provider)
-      |> Keyword.put(:provider_config_id, effective.id)
+            _ ->
+              generate_response_without_tools(opts)
+          end
+      end
+    else
+      {:error, reason} ->
+        Logger.warning("llm_provider_error reason=#{inspect(reason)}")
+        {:error, reason}
+    end
+  end
 
-    messages =
-      [
-        %{
-          "role" => "system",
-          "content" => system_prompt(agent_slug)
-        }
-      ] ++
-        constitution_messages(constitution_prompt_text) ++
-        skill_messages(agent_id) ++
-        context_messages(context_text) ++
-        [%{"role" => "user", "content" => user_prompt(user_input)}]
+  @spec generate_response_without_tools(keyword()) :: {:ok, String.t()} | {:error, term()}
+  def generate_response_without_tools(opts) do
+    %{messages: messages, provider_opts: provider_opts, provider: provider} = response_state(opts)
 
     with {:ok, module} <- provider_module(provider),
-         {:ok, text} <- complete_with_optional_tools(module, messages, provider_opts),
+         {:ok, text} <- traced_complete(module, messages, provider_opts, "response", 0),
          text when is_binary(text) and text != "" <- sanitize_text(text) do
       {:ok, text}
     else
       {:error, reason} ->
         Logger.warning("llm_provider_error provider=#{provider} reason=#{inspect(reason)}")
+        {:error, reason}
+
+      _ ->
+        {:error, :empty_llm_response}
+    end
+  end
+
+  @spec plan_tool_calls(keyword()) ::
+          {:ok, %{tool_calls: [map()], available_tools: [map()]}} | {:error, term()}
+  def plan_tool_calls(opts) do
+    %{
+      messages: base_messages,
+      provider_opts: provider_opts,
+      provider: provider,
+      user_input: user_input,
+      agent_id: agent_id
+    } = state = response_state(opts)
+
+    available_tools = Executor.available_tools(agent_id)
+
+    cond do
+      available_tools == [] ->
+        {:ok, %{tool_calls: [], available_tools: []}}
+
+      true ->
+        with {:ok, module} <- provider_module(provider),
+             {:ok, tool_calls} <-
+               plan_with_heuristics_or_model(
+                 module,
+                 base_messages,
+                 user_input,
+                 available_tools,
+                 provider_opts
+               ) do
+          {:ok, %{tool_calls: tool_calls, available_tools: available_tools, state: state}}
+        end
+    end
+  end
+
+  @spec execute_tool_calls(binary() | nil, [map()]) :: {:ok, [map()]} | {:error, term()}
+  def execute_tool_calls(agent_id, tool_calls) when is_list(tool_calls) do
+    available_tools = Executor.available_tools(agent_id)
+    execute_tool_plan(tool_calls, available_tools)
+  end
+
+  @spec synthesize_tool_response(keyword(), [map()]) :: {:ok, String.t()} | {:error, term()}
+  def synthesize_tool_response(opts, tool_context) when is_list(tool_context) do
+    if tool_context == [] do
+      generate_response_without_tools(opts)
+    else
+      %{
+        messages: base_messages,
+        provider_opts: provider_opts,
+        provider: provider
+      } = response_state(opts)
+
+      tool_result_messages = [
+        %{
+          "role" => "system",
+          "content" =>
+            "Tool execution results are available for your reasoning. " <>
+              "Do not mention internal tool names, JSON payloads, IDs, or workflow internals in the user-facing response. " <>
+              "Summarize the outcome in plain language.\n\n#{Jason.encode!(%{"tool_results" => tool_context})}"
+        }
+      ]
+
+      with {:ok, module} <- provider_module(provider),
+           {:ok, text} <-
+             traced_complete(
+               module,
+               base_messages ++ tool_result_messages,
+               provider_opts,
+               "tool_response",
+               1
+             ),
+           text when is_binary(text) and text != "" <- sanitize_text(text) do
+        {:ok, text}
+      else
+        _ -> generate_response_without_tools(opts)
+      end
+    end
+  end
+
+  @spec deep_research_decision(keyword()) :: map()
+  def deep_research_decision(opts) when is_list(opts) do
+    user_input =
+      Keyword.get(opts, :user_input, "")
+      |> to_string()
+      |> String.trim()
+
+    available_tools =
+      Keyword.get(opts, :available_tools) ||
+        Executor.available_tools(Keyword.get(opts, :agent_id))
+
+    explicit? = explicit_deep_research?(opts)
+    fallback = DeepResearch.fallback_decision(user_input, available_tools)
+
+    cond do
+      not DeepResearch.should_consider?(user_input, available_tools) and not explicit? ->
+        fallback
+
+      true ->
+        %{
+          messages: base_messages,
+          provider_opts: provider_opts,
+          provider: provider
+        } = response_state(opts)
+
+        with {:ok, module} <- provider_module(provider),
+             {:ok, response} <-
+               traced_complete(
+                 module,
+                 base_messages ++
+                   [deep_research_decision_message(available_tools, explicit?)],
+                 provider_opts,
+                 "deep_research_decision",
+                 0
+               ),
+             {:ok, payload} <- extract_json_object(response) do
+          DeepResearch.normalize_decision(payload, user_input, available_tools)
+        else
+          _ -> fallback
+        end
+    end
+  end
+
+  @spec review_deep_research_round(keyword(), map()) :: {:ok, map()} | {:error, term()}
+  def review_deep_research_round(opts, round_payload)
+      when is_list(opts) and is_map(round_payload) do
+    %{
+      messages: base_messages,
+      provider_opts: provider_opts,
+      provider: provider
+    } = response_state(opts)
+
+    evidence = Map.get(round_payload, "evidence", [])
+    round_index = normalize_round_index(Map.get(round_payload, "round_index"))
+    max_rounds = normalize_max_rounds(Map.get(round_payload, "max_rounds"))
+    prior_summary = Map.get(round_payload, "prior_summary", "")
+
+    fallback =
+      DeepResearch.normalize_round_review(%{}, evidence, round_index, max_rounds)
+
+    with {:ok, module} <- provider_module(provider),
+         {:ok, response} <-
+           traced_complete(
+             module,
+             base_messages ++
+               [
+                 deep_research_review_message(
+                   evidence,
+                   prior_summary,
+                   round_index,
+                   max_rounds
+                 )
+               ],
+             provider_opts,
+             "deep_research_review",
+             round_index
+           ),
+         {:ok, payload} <- extract_json_object(response) do
+      {:ok, DeepResearch.normalize_round_review(payload, evidence, round_index, max_rounds)}
+    else
+      _ -> {:ok, fallback}
+    end
+  end
+
+  @spec synthesize_deep_research_response(keyword(), map()) ::
+          {:ok, String.t()} | {:error, term()}
+  def synthesize_deep_research_response(opts, research_payload)
+      when is_list(opts) and is_map(research_payload) do
+    %{
+      messages: base_messages,
+      provider_opts: provider_opts,
+      provider: provider
+    } = response_state(opts)
+
+    with {:ok, module} <- provider_module(provider),
+         {:ok, text} <-
+           traced_complete(
+             module,
+             base_messages ++ [deep_research_result_message(research_payload)],
+             provider_opts,
+             "deep_research_response",
+             0
+           ),
+         text when is_binary(text) and text != "" <- sanitize_text(text) do
+      {:ok, text}
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "deep_research_response_failed provider=#{provider} reason=#{inspect(reason)}"
+        )
+
         {:error, reason}
 
       _ ->
@@ -111,25 +290,16 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
 
   defp constitution_messages(_), do: []
 
-  defp complete_with_optional_tools(module, base_messages, opts) do
-    available_tools = Executor.available_tools(Keyword.get(opts, :agent_id))
-    user_input = Keyword.get(opts, :user_input, "") |> to_string() |> String.trim()
-
-    if available_tools == [] do
-      traced_complete(module, base_messages, opts, "response", 0)
+  defp plan_with_heuristics_or_model(module, base_messages, user_input, available_tools, opts) do
+    with {:ok, plan} <- heuristic_tool_plan(user_input, available_tools, opts),
+         true <- plan != [] do
+      {:ok, plan}
     else
-      with {:ok, plan} <- heuristic_tool_plan(user_input, available_tools, opts),
-           true <- plan != [],
-           {:ok, tool_context} <- execute_tool_plan(plan, available_tools),
-           true <- tool_context != [] do
-        {:ok, render_tool_outcome_reply(tool_context)}
-      else
-        false ->
-          run_model_tool_planner(module, base_messages, user_input, available_tools, opts)
+      false ->
+        run_model_tool_planner(module, base_messages, user_input, available_tools, opts)
 
-        {:error, _reason} ->
-          run_model_tool_planner(module, base_messages, user_input, available_tools, opts)
-      end
+      {:error, _reason} ->
+        run_model_tool_planner(module, base_messages, user_input, available_tools, opts)
     end
   end
 
@@ -143,24 +313,62 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
              0
            ),
          {:ok, plan} <-
-           parse_or_infer_tool_plan(tool_plan_text, user_input, available_tools, opts),
-         {:ok, tool_context} <- execute_tool_plan(plan, available_tools),
-         true <- tool_context != [] do
-      tool_result_messages = [
+           parse_or_infer_tool_plan(tool_plan_text, user_input, available_tools, opts) do
+      {:ok, plan}
+    else
+      _ -> {:ok, []}
+    end
+  end
+
+  defp response_state(opts) do
+    effective = Settings.llm_provider_effective()
+    agent_slug = Keyword.get(opts, :agent_slug, "automata")
+    user_input = Keyword.get(opts, :user_input, "") |> to_string() |> String.trim()
+    provider = Keyword.get(opts, :provider, effective.provider)
+    model = Keyword.get(opts, :model, effective.model)
+    timeout_seconds = Keyword.get(opts, :timeout_seconds, effective.timeout_seconds || 600)
+    agent_id = Keyword.get(opts, :agent_id)
+    context_text = Keyword.get(opts, :context_text, "") |> to_string() |> String.trim()
+    trace_context = Keyword.get(opts, :trace_context, %{})
+    constitution_snapshot = Keyword.get(opts, :constitution_snapshot)
+
+    constitution_prompt_text =
+      Keyword.get(opts, :constitution_prompt_text) ||
+        Runtime.constitution_prompt_text(constitution_snapshot)
+
+    provider_opts =
+      [
+        model: model,
+        base_url: effective.base_url,
+        api_key: effective.api_token,
+        timeout_seconds: timeout_seconds,
+        agent_id: agent_id,
+        user_input: user_input,
+        room_id: Keyword.get(opts, :room_id)
+      ]
+      |> Keyword.put(:trace_context, trace_context)
+      |> Keyword.put(:provider, provider)
+      |> Keyword.put(:provider_config_id, effective.id)
+
+    messages =
+      [
         %{
           "role" => "system",
-          "content" =>
-            "Tool execution results are available for your reasoning. " <>
-              "Do not mention internal tool names, JSON payloads, IDs, or workflow internals in the user-facing response. " <>
-              "Summarize the outcome in plain language.\n\n#{Jason.encode!(%{"tool_results" => tool_context})}"
+          "content" => system_prompt(agent_slug)
         }
-      ]
+      ] ++
+        constitution_messages(constitution_prompt_text) ++
+        skill_messages(agent_id) ++
+        context_messages(context_text) ++
+        [%{"role" => "user", "content" => user_prompt(user_input)}]
 
-      traced_complete(module, base_messages ++ tool_result_messages, opts, "tool_response", 1)
-    else
-      false -> traced_complete(module, base_messages, opts, "response_fallback", 1)
-      _ -> traced_complete(module, base_messages, opts, "response_fallback", 1)
-    end
+    %{
+      provider: provider,
+      provider_opts: provider_opts,
+      messages: messages,
+      user_input: user_input,
+      agent_id: agent_id
+    }
   end
 
   defp traced_complete(module, messages, opts, call_kind, sequence_index) do
@@ -194,6 +402,54 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
           "{\"tool_calls\":[{\"name\":\"tool_name\",\"arguments\":{}}]}. " <>
           "If no tools are needed, respond ONLY with {\"tool_calls\":[]}. " <>
           "Available tools: #{inspect(tool_specs(available_tools))}"
+    }
+  end
+
+  defp deep_research_decision_message(available_tools, explicit?) do
+    limits = DeepResearch.config()
+    tool_names = Enum.map(available_tools, &(Map.get(&1, :name) || Map.get(&1, "name")))
+
+    %{
+      "role" => "system",
+      "content" =>
+        "Decide whether this request requires deep research. " <>
+          "Deep research is appropriate when the user explicitly asks for it or when the task needs fresh external evidence, comparison, investigation, or multi-step synthesis. " <>
+          "Return ONLY JSON with keys enabled, reason, max_rounds, queries, and focus_areas. " <>
+          "Set max_rounds between 1 and #{limits["max_rounds"]}. " <>
+          "Keep queries to #{limits["max_queries_per_round"]} or fewer short web-search queries. " <>
+          "Available tools: #{inspect(tool_names)}. " <>
+          if(explicit?,
+            do: "The user explicitly requested deeper research. Bias toward enabled=true.",
+            else: ""
+          )
+    }
+  end
+
+  defp deep_research_review_message(evidence, prior_summary, round_index, max_rounds) do
+    evidence_text = DeepResearch.render_evidence_for_prompt(evidence)
+    limits = DeepResearch.config()
+
+    %{
+      "role" => "system",
+      "content" =>
+        "Review the current deep research evidence and decide whether more research is needed. " <>
+          "Return ONLY JSON with keys round_summary, key_findings, continue_research, follow_up_queries, and top_sources. " <>
+          "Keep follow_up_queries to #{limits["max_queries_per_round"]} or fewer. " <>
+          "Only continue when the evidence is still incomplete and the next round will materially improve the answer. " <>
+          "This is round #{round_index} of #{max_rounds}.\n\n" <>
+          "Prior summary:\n#{blank_if_empty(prior_summary)}\n\n" <>
+          "Current evidence:\n#{blank_if_empty(evidence_text)}"
+    }
+  end
+
+  defp deep_research_result_message(research_payload) do
+    %{
+      "role" => "system",
+      "content" =>
+        "Deep research findings are available for your final answer. " <>
+          "Write a plain-text response for the user. Do not use markdown bullets, JSON, or internal workflow language. " <>
+          "Use the gathered evidence, mention uncertainty when sources disagree, and prefer concise paragraphs.\n\n" <>
+          Jason.encode!(%{"deep_research" => research_payload})
     }
   end
 
@@ -361,41 +617,6 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
 
   defp tool_available?(tools, name), do: Enum.any?(tools, &(&1.name == name))
 
-  defp render_tool_outcome_reply(tool_context) do
-    tool_context
-    |> Enum.map(&tool_outcome_line/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join(" ")
-    |> case do
-      "" -> "Done."
-      text -> text
-    end
-  end
-
-  defp tool_outcome_line(%{
-         "name" => "system_directory_admin",
-         "result" => %{"result" => "agent_hired"}
-       }),
-       do: "Agent has been hired."
-
-  defp tool_outcome_line(%{
-         "name" => "system_directory_admin",
-         "result" => %{"result" => "agent_invited", "localpart" => localpart}
-       }),
-       do: "@#{localpart} has been invited to this room."
-
-  defp tool_outcome_line(%{
-         "name" => "system_directory_admin",
-         "result" => %{"result" => "human_upserted"}
-       }),
-       do: "User account has been created."
-
-  defp tool_outcome_line(%{"name" => "run_shell", "result" => %{"exit_code" => status}})
-       when is_integer(status) and status == 0,
-       do: "Command completed successfully."
-
-  defp tool_outcome_line(_), do: "Done."
-
   defp extract_name_localpart(input, anchor1, anchor2) do
     pattern =
       case String.trim(anchor2) do
@@ -436,6 +657,38 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
     case Regex.run(~r/\{[\s\S]*\}/u, text) do
       [json] -> Jason.decode(json)
       _ -> {:error, :no_json_object}
+    end
+  end
+
+  defp explicit_deep_research?(opts) do
+    Keyword.get(opts, :deep_research) in [true, "true", "1"] or
+      Keyword.get(opts, :research_mode) in [:deep, "deep", "deep_research"]
+  end
+
+  defp normalize_round_index(value) when is_integer(value) and value > 0, do: value
+
+  defp normalize_round_index(value) do
+    case Integer.parse(to_string(value || "")) do
+      {parsed, _} when parsed > 0 -> parsed
+      _ -> 1
+    end
+  end
+
+  defp normalize_max_rounds(value) when is_integer(value) and value > 0, do: value
+
+  defp normalize_max_rounds(value) do
+    limit = DeepResearch.config()["max_rounds"]
+
+    case Integer.parse(to_string(value || "")) do
+      {parsed, _} when parsed > 0 -> min(parsed, limit)
+      _ -> limit
+    end
+  end
+
+  defp blank_if_empty(value) do
+    case value |> to_string() |> String.trim() do
+      "" -> "No prior summary."
+      trimmed -> trimmed
     end
   end
 
