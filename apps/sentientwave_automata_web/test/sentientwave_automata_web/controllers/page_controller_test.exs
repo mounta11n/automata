@@ -73,7 +73,7 @@ defmodule SentientwaveAutomataWeb.PageControllerTest do
     assert body =~ "Quick Presets"
     assert body =~ "Google Gemini"
     assert body =~ "Gemini generateContent API"
-    assert body =~ "gemini-2.5-flash"
+    assert body =~ "gemini-3.1-pro-preview"
     assert body =~ "x-goog-api-key"
     assert body =~ "generativelanguage.googleapis.com/v1beta"
   end
@@ -95,7 +95,7 @@ defmodule SentientwaveAutomataWeb.PageControllerTest do
                "name" => "Gemini Primary",
                "slug" => "gemini-primary-ui-test",
                "provider" => "gemini",
-               "model" => "gemini-2.5-flash",
+               "model" => "gemini-3.1-pro-preview",
                "base_url" => "https://generativelanguage.googleapis.com/v1beta",
                "api_token" => "gemini-ui-test-key",
                "enabled" => true,
@@ -120,7 +120,7 @@ defmodule SentientwaveAutomataWeb.PageControllerTest do
                "name" => "Gemini Detail",
                "slug" => "gemini-detail-ui-test",
                "provider" => "gemini",
-               "model" => "gemini-2.5-flash",
+               "model" => "gemini-3.1-pro-preview",
                "base_url" => "https://generativelanguage.googleapis.com/v1beta",
                "api_token" => "gemini-detail-key",
                "enabled" => true,
@@ -137,7 +137,7 @@ defmodule SentientwaveAutomataWeb.PageControllerTest do
     assert body =~ "Google Gemini"
     assert body =~ "Gemini generateContent API"
     assert body =~ "x-goog-api-key"
-    assert body =~ "gemini-2.5-flash"
+    assert body =~ "gemini-3.1-pro-preview"
   end
 
   test "GET /settings/skills renders skill catalog when authenticated", %{conn: conn} do

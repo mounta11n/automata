@@ -43,7 +43,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
                ],
                api_key: "gemini_test_key",
                base_url: base_url,
-               model: "gemini-2.5-flash",
+               model: "gemini-3.1-pro-preview",
                max_tokens: 512,
                timeout_seconds: 5
              )
@@ -53,7 +53,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
     {headers, body} = split_request(request)
     payload = Jason.decode!(body)
 
-    assert headers =~ "POST /v1beta/models/gemini-2.5-flash:generateContent HTTP/1.1"
+    assert headers =~ "POST /v1beta/models/gemini-3.1-pro-preview:generateContent HTTP/1.1"
     assert String.downcase(headers) =~ "x-goog-api-key: gemini_test_key"
 
     assert payload["system_instruction"] == %{
@@ -102,7 +102,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
                [%{"role" => "user", "content" => "Hello Gemini"}],
                api_key: "gemini_test_key",
                base_url: base_url,
-               model: "gemini-2.5-flash",
+               model: "gemini-3.1-pro-preview",
                timeout_seconds: 5
              )
 
@@ -135,7 +135,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
                [%{"role" => "user", "content" => "Hello Gemini"}],
                api_key: "gemini_test_key",
                base_url: base_url,
-               model: "gemini-2.5-flash",
+               model: "gemini-3.1-pro-preview",
                timeout_seconds: 5
              )
 

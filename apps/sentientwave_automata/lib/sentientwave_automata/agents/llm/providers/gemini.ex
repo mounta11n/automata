@@ -5,7 +5,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.Gemini do
 
   alias SentientwaveAutomata.Agents.LLM.HTTP
 
-  @default_model "gemini-2.5-flash"
+  @default_model "gemini-3.1-pro-preview"
   @default_base_url "https://generativelanguage.googleapis.com/v1beta"
   @default_max_output_tokens 1024
 

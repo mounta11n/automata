@@ -14,6 +14,7 @@ defmodule SentientwaveAutomataWeb.PageHTML do
       label: "Local (Fallback)",
       family: "Built-in fallback",
       summary: "Use the local fallback path for development and break-glass testing.",
+      recommended_model: "local-default",
       auth_header: "none",
       token_label: "API Token",
       token_help: "The local fallback usually does not need an API token.",
@@ -25,21 +26,23 @@ defmodule SentientwaveAutomataWeb.PageHTML do
       label: "OpenAI",
       family: "Chat Completions API",
       summary: "Use OpenAI hosted models through the standard OpenAI API surface.",
+      recommended_model: "gpt-5.4",
       auth_header: "Authorization: Bearer",
       token_label: "OpenAI API Key",
       token_help: "Paste an OpenAI API key. Automata sends it as a Bearer token.",
-      model_help: "Recommended starter model: gpt-4o-mini.",
+      model_help: "Recommended current model: gpt-5.4.",
       endpoint_help: "Leave Base URL blank to use the default OpenAI API endpoint."
     },
     "gemini" => %{
       label: "Google Gemini",
       family: "Gemini generateContent API",
       summary: "Use Gemini models through Google's native Gemini REST API.",
+      recommended_model: "gemini-3.1-pro-preview",
       auth_header: "x-goog-api-key",
       token_label: "Gemini API Key",
       token_help:
         "Create a Gemini API key in Google AI Studio. Automata sends it in the x-goog-api-key header.",
-      model_help: "Recommended starter model: gemini-2.5-flash.",
+      model_help: "Recommended current model: gemini-3.1-pro-preview (Gemini 3.1 Pro Preview).",
       endpoint_help:
         "Leave Base URL blank to use the standard Gemini REST endpoint, or set a compatible proxy."
     },
@@ -47,40 +50,45 @@ defmodule SentientwaveAutomataWeb.PageHTML do
       label: "Anthropic",
       family: "Messages API",
       summary: "Use Claude models through Anthropic's Messages API.",
+      recommended_model: "claude-sonnet-4-6",
       auth_header: "x-api-key",
       token_label: "Anthropic API Key",
       token_help: "Paste an Anthropic API key. Automata sends it as x-api-key.",
-      model_help: "Recommended starter model: claude-3-5-haiku-latest.",
+      model_help: "Recommended current model: claude-sonnet-4-6.",
       endpoint_help: "Leave Base URL blank to use the default Anthropic API endpoint."
     },
     "cerebras" => %{
       label: "Cerebras",
       family: "Chat Completions API",
       summary: "Use Cerebras hosted models with the Cerebras chat completions endpoint.",
+      recommended_model: "gpt-oss-120b",
       auth_header: "Authorization: Bearer",
       token_label: "Cerebras API Key",
       token_help: "Paste a Cerebras API key. Automata sends it as a Bearer token.",
-      model_help: "Recommended starter model: gpt-oss-120b.",
+      model_help: "Recommended current model: gpt-oss-120b.",
       endpoint_help: "Leave Base URL blank to use the default Cerebras API endpoint."
     },
     "openrouter" => %{
       label: "OpenRouter",
       family: "OpenAI-compatible API",
       summary: "Route model traffic through OpenRouter with OpenAI-style request semantics.",
+      recommended_model: "openrouter/auto",
       auth_header: "Authorization: Bearer",
       token_label: "OpenRouter API Key",
       token_help: "Paste an OpenRouter API key. Automata sends it as a Bearer token.",
-      model_help: "Recommended starter model: openai/gpt-4o-mini.",
+      model_help: "Recommended current model: openrouter/auto.",
       endpoint_help: "Leave Base URL blank to use the default OpenRouter API endpoint."
     },
     "lm-studio" => %{
       label: "LM Studio",
       family: "Local OpenAI-compatible API",
       summary: "Use a self-hosted LM Studio server for local or private model inference.",
+      recommended_model: "qwen3-next-80b",
       auth_header: "optional",
       token_label: "API Token",
       token_help: "LM Studio usually does not require a token unless you configured one locally.",
-      model_help: "Set the local model alias served by your LM Studio instance.",
+      model_help:
+        "Recommended current family: Qwen3 Next 80B. Use the exact local alias your LM Studio server exposes.",
       endpoint_help:
         "Point Base URL at your LM Studio server if you are not using the default local endpoint."
     },
@@ -88,11 +96,13 @@ defmodule SentientwaveAutomataWeb.PageHTML do
       label: "Ollama",
       family: "Local Ollama API",
       summary: "Use a self-hosted Ollama runtime for local model inference.",
+      recommended_model: "gpt-oss:20b",
       auth_header: "optional",
       token_label: "API Token",
       token_help:
         "Ollama usually does not require a token unless you front it with another gateway.",
-      model_help: "Set the Ollama model name you want the provider to use.",
+      model_help:
+        "Recommended current local model: gpt-oss:20b. Pull it into Ollama before you switch the provider.",
       endpoint_help:
         "Point Base URL at your Ollama server if you are not using the default local endpoint."
     }
@@ -201,9 +211,9 @@ defmodule SentientwaveAutomataWeb.PageHTML do
 
       <div class="sw-kpi-grid sw-provider-guide-grid mt-5">
         <article class="sw-kpi-card">
-          <p class="sw-kpi-label">Default Model</p>
+          <p class="sw-kpi-label">Recommended Model</p>
           <p class="sw-kpi-value sw-kpi-value-small" data-provider-guide-model>
-            {@setup.default_model}
+            {@setup.recommended_model}
           </p>
         </article>
 
@@ -381,6 +391,8 @@ defmodule SentientwaveAutomataWeb.PageHTML do
     |> Map.merge(%{
       provider: normalized,
       default_model: defaults.model,
+      recommended_model:
+        Map.get(@llm_provider_ui_copy[normalized] || %{}, :recommended_model, defaults.model),
       default_base_url: defaults.base_url,
       default_base_url_label:
         case defaults.base_url do

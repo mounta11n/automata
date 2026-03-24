@@ -112,15 +112,15 @@ AUTOMATA_LLM_PROVIDER="$(prompt_value 'LLM provider (local/openai/gemini/openrou
 
 case "${AUTOMATA_LLM_PROVIDER}" in
   openai)
-    AUTOMATA_LLM_MODEL_DEFAULT="gpt-4o-mini"
+    AUTOMATA_LLM_MODEL_DEFAULT="gpt-5.4"
     AUTOMATA_LLM_BASE_DEFAULT="https://api.openai.com/v1"
     ;;
   gemini)
-    AUTOMATA_LLM_MODEL_DEFAULT="gemini-2.5-flash"
+    AUTOMATA_LLM_MODEL_DEFAULT="gemini-3.1-pro-preview"
     AUTOMATA_LLM_BASE_DEFAULT="https://generativelanguage.googleapis.com/v1beta"
     ;;
   openrouter)
-    AUTOMATA_LLM_MODEL_DEFAULT="openai/gpt-4o-mini"
+    AUTOMATA_LLM_MODEL_DEFAULT="openrouter/auto"
     AUTOMATA_LLM_BASE_DEFAULT="https://openrouter.ai/api/v1"
     ;;
   lm-studio)
