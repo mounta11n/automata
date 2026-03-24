@@ -56,7 +56,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
     assert headers =~ "POST /v1beta/models/gemini-2.5-flash:generateContent HTTP/1.1"
     assert String.downcase(headers) =~ "x-goog-api-key: gemini_test_key"
 
-    assert payload["systemInstruction"] == %{
+    assert payload["system_instruction"] == %{
              "parts" => [%{"text" => "Core system instruction.\n\nSkill instruction."}]
            }
 

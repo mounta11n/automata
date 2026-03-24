@@ -123,7 +123,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.Gemini do
   defp maybe_put_system_instruction(payload, nil), do: payload
 
   defp maybe_put_system_instruction(payload, system_instruction) do
-    Map.put(payload, "systemInstruction", %{
+    Map.put(payload, "system_instruction", %{
       "parts" => [%{"text" => system_instruction}]
     })
   end
