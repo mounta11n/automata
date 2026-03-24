@@ -48,7 +48,7 @@ Security-related env vars (in `deploy/all-in-one/.env`):
 - `AUTOMATA_EMBEDDING_API_BASE` (optional API base URL for embedding provider)
 - `AUTOMATA_EMBEDDING_API_KEY` (optional API key for embedding provider)
 - `AUTOMATA_LLM_PROVIDER` (`local`, `openai`, `gemini`, `openrouter`, `lm-studio`, `ollama`)
-- `AUTOMATA_LLM_MODEL` (provider model id, for example `gpt-4o-mini`, `gemini-2.5-flash`, `openai/gpt-4o-mini`, `llama3.1`)
+- `AUTOMATA_LLM_MODEL` (provider model id, for example `gpt-5.4`, `gemini-3.1-pro-preview`, `openrouter/auto`, `gpt-oss:20b`)
 - `AUTOMATA_LLM_API_BASE` (optional provider base URL override)
 - `AUTOMATA_LLM_API_KEY` (provider API key when required)
 - `AUTOMATA_TEMPORAL_TASK_QUEUE` (Temporal task queue name for agent durable workflows)

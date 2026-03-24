@@ -90,7 +90,7 @@ const initProviderForms = () => {
       if (title) title.textContent = setup.label || provider
       if (summary) summary.textContent = setup.summary || ""
       if (family) family.textContent = setup.family || ""
-      if (model) model.textContent = setup.default_model || ""
+      if (model) model.textContent = setup.recommended_model || setup.default_model || ""
       if (endpoint) endpoint.textContent = setup.default_base_url_label || ""
       if (auth) auth.textContent = setup.auth_header || ""
       if (tokenHelp) tokenHelp.textContent = setup.token_help || ""
@@ -98,7 +98,7 @@ const initProviderForms = () => {
       if (endpointHelp) endpointHelp.textContent = setup.endpoint_help || ""
 
       if (modelInput) {
-        modelInput.placeholder = setup.default_model || "Provider default model"
+        modelInput.placeholder = setup.recommended_model || setup.default_model || "Provider model"
       }
 
       if (baseUrlInput) {

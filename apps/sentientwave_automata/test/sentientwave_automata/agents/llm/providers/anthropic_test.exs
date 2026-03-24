@@ -40,7 +40,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.AnthropicTest do
                ],
                api_key: "sk-ant-test",
                base_url: base_url,
-               model: "claude-3-5-haiku-latest",
+               model: "claude-sonnet-4-6",
                max_tokens: 512,
                timeout_seconds: 5
              )
@@ -53,7 +53,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.AnthropicTest do
     assert headers =~ "POST /v1/messages HTTP/1.1"
     assert String.downcase(headers) =~ "x-api-key: sk-ant-test"
     assert String.downcase(headers) =~ "anthropic-version: 2023-06-01"
-    assert payload["model"] == "claude-3-5-haiku-latest"
+    assert payload["model"] == "claude-sonnet-4-6"
     assert payload["max_tokens"] == 512
     assert payload["system"] == "Core system instruction.\n\nSkill instruction."
 
@@ -94,7 +94,7 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.AnthropicTest do
                [%{"role" => "user", "content" => "Hello Claude"}],
                api_key: "sk-ant-test",
                base_url: base_url,
-               model: "claude-3-5-haiku-latest",
+               model: "claude-sonnet-4-6",
                timeout_seconds: 5
              )
 

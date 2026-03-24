@@ -12,14 +12,14 @@ defmodule SentientwaveAutomata.Settings do
   @singleton_key "default"
   @llm_provider_defaults %{
     "local" => %{model: "local-default", base_url: ""},
-    "openai" => %{model: "gpt-4o-mini", base_url: "https://api.openai.com/v1"},
+    "openai" => %{model: "gpt-5.4", base_url: "https://api.openai.com/v1"},
     "gemini" => %{
-      model: "gemini-2.5-flash",
+      model: "gemini-3.1-pro-preview",
       base_url: "https://generativelanguage.googleapis.com/v1beta"
     },
-    "anthropic" => %{model: "claude-3-5-haiku-latest", base_url: "https://api.anthropic.com"},
+    "anthropic" => %{model: "claude-sonnet-4-6", base_url: "https://api.anthropic.com"},
     "cerebras" => %{model: "gpt-oss-120b", base_url: "https://api.cerebras.ai/v1"},
-    "openrouter" => %{model: "openai/gpt-4o-mini", base_url: "https://openrouter.ai/api/v1"},
+    "openrouter" => %{model: "openrouter/auto", base_url: "https://openrouter.ai/api/v1"},
     "lm-studio" => %{model: "local-model", base_url: "http://host.containers.internal:1234/v1"},
     "ollama" => %{model: "llama3.1", base_url: "http://host.containers.internal:11434"}
   }

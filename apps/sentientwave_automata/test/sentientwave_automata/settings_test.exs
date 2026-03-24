@@ -9,7 +9,7 @@ defmodule SentientwaveAutomata.SettingsTest do
                "name" => "OpenAI Primary",
                "slug" => "openai-primary",
                "provider" => "openai",
-               "model" => "gpt-4o-mini",
+               "model" => "gpt-5.4",
                "api_token" => "tok_1",
                "enabled" => true,
                "is_default" => true
@@ -37,14 +37,14 @@ defmodule SentientwaveAutomata.SettingsTest do
                "name" => "Anthropic Primary",
                "slug" => "anthropic-primary",
                "provider" => "anthropic",
-               "model" => "claude-3-5-haiku-latest",
+               "model" => "claude-sonnet-4-6",
                "base_url" => "https://api.anthropic.com",
                "api_token" => "sk-ant-test",
                "enabled" => true
              })
 
     assert provider.provider == "anthropic"
-    assert provider.model == "claude-3-5-haiku-latest"
+    assert provider.model == "claude-sonnet-4-6"
     assert provider.timeout_seconds == 600
   end
 
@@ -71,14 +71,14 @@ defmodule SentientwaveAutomata.SettingsTest do
                "name" => "Gemini Primary",
                "slug" => "gemini-primary",
                "provider" => "gemini",
-               "model" => "gemini-2.5-flash",
+               "model" => "gemini-3.1-pro-preview",
                "base_url" => "https://generativelanguage.googleapis.com/v1beta",
                "api_token" => "gemini_test_key",
                "enabled" => true
              })
 
     assert provider.provider == "gemini"
-    assert provider.model == "gemini-2.5-flash"
+    assert provider.model == "gemini-3.1-pro-preview"
     assert provider.timeout_seconds == 600
   end
 
