@@ -12,6 +12,8 @@ Instead of scattering prompts across separate tools, Automata gives an organizat
 
 Automata turns team chat into a shared operating environment for AI-assisted work. People can ask for help in Matrix rooms or direct messages, assistants can continue multi-step tasks, and administrators can decide which AI services, tools, skills, and rules are allowed in the system.
 
+It is also designed for higher autonomy over time. Teams can adjust how the system behaves through skills, schedules, permissions, and a dynamic governance layer built around laws and proposals, so the organization can evolve how assistants operate without losing oversight.
+
 Automata is not just a chatbot window. It combines:
 - Matrix chat for day-to-day collaboration
 - a web admin dashboard for setup and control
@@ -36,6 +38,7 @@ Automata exists to make AI-assisted work dependable, visible, and governable.
 - onboard people, agents, and service accounts, then keep Matrix identities in sync
 - review provider activity, traces, and task history from one place
 - control which tools, skills, schedules, and permissions assistants receive
+- evolve system behavior through laws, proposals, and governance workflows
 
 ## How You Use It
 
@@ -73,6 +76,18 @@ At a high level, Automata uses Temporal for:
 - multi-step research tasks that gather and review evidence across rounds
 
 This is part of what makes Automata feel more reliable in real use. It can retry the right step, recover after interruptions, and keep a clear record of what happened.
+
+## High Autonomy and Self-Evolution
+
+Automata is built for systems that need to become more capable without becoming chaotic. Instead of hiding behavior changes in scattered prompts or one-off scripts, it gives teams explicit ways to evolve the system over time.
+
+That includes:
+- changing assistant behavior through skills, tools, schedules, and permissions
+- defining company laws that apply across agent reasoning
+- proposing, reviewing, and voting on governance changes inside Matrix
+- keeping a visible history of how the system was changed and why
+
+This makes higher autonomy more practical. Automata can adapt as the organization learns, while keeping those changes reviewable, governable, and tied to clear rules.
 
 ## Admin Dashboard
 
