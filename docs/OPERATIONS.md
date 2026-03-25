@@ -5,7 +5,7 @@
 - Podman: rootless Linux deployments with systemd/Quadlet
 - Apple Containers: local Apple Silicon development path
 - LXC: unprivileged containers only
-- NixOS: native flake modules for arbitrary NixOS configurations
+- NixOS VMs: canonical production substrate
 
 ## Topology
 Community:
