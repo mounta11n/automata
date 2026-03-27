@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: automata-core-nodeport
+  labels:
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      nodePort: 30080
+      port: 4000
+      targetPort: 4000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automata-matrix-nodeport
+  labels:
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      nodePort: 30081
+      port: 8008
+      targetPort: 8008
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: matrix-synapse
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automata-temporal-nodeport
+  labels:
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+spec:
+  type: NodePort
+  ports:
+    - name: grpc
+      nodePort: 30082
+      port: 7233
+      targetPort: 7233
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: temporal
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automata-temporal-web-nodeport
+  labels:
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
+spec:
+  type: NodePort
+  ports:
+    - name: web
+      nodePort: 30083
+      port: 8088
+      targetPort: 8088
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: temporal
+    app.kubernetes.io/instance: automata
+    app.kubernetes.io/name: automata
