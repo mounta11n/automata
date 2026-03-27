@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "automata.fullname" . }}
+  name: automata-core
   labels:
     {{- include "automata.labels" . | nindent 4 }}
 spec:
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "automata.labels" . | nindent 8 }}
+        {{- include "automata.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -32,6 +32,24 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              sleep 5
+              echo "Running migrations..."
+              cd /app
+              MIX_ENV=prod mix ecto.migrate || echo "Migrations may already be applied"
+              echo "Migrations complete"
+          env:
+            - name: DATABASE_URL
+              value: {{ printf "ecto://%s:%s@%s-postgres:5432/automata" .Values.postgresql.auth.username .Values.postgresql.auth.password (include "automata.fullname" .) | quote }}
+            - name: MIX_ENV
+              value: "prod"
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}
@@ -45,9 +63,23 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            - name: DATABASE_URL
+              value: {{ printf "ecto://%s:%s@%s-postgres:5432/automata" .Values.postgresql.auth.username .Values.postgresql.auth.password (include "automata.fullname" .) | quote }}
+            - name: TEMPORAL_ADDRESS
+              value: {{ printf "%s-temporal:7233" (include "automata.fullname" .) | quote }}
+            - name: MATRIX_HOMESERVER_URL
+              value: {{ printf "http://%s-matrix:8008" (include "automata.fullname" .) | quote }}
+            - name: MATRIX_ADAPTER
+              value: "synapse"
+            - name: MATRIX_URL
+              value: {{ printf "http://%s-matrix:8008" (include "automata.fullname" .) | quote }}
+            - name: MATRIX_HOMESERVER_DOMAIN
+              value: {{ .Values.matrix.serverName | default "matrix.example.com" | quote }}
             {{- range $key, $val := .Values.env }}
+            {{- if and (ne $key "DATABASE_URL") (ne $key "TEMPORAL_ADDRESS") }}
             - name: {{ $key }}
               value: {{ $val | quote }}
+            {{- end }}
             {{- end }}
             - name: RELEASE_NODE
               value: "{{ template "automata.fullname" . }}@$(POD_IP)"

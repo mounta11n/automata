@@ -7,11 +7,11 @@ replicaCount: 1
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: sentientwave/automata
+  repository: docker.io/library/automata
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "local"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -73,6 +73,68 @@ ingress:
       hosts:
         - automata.local
 
+# PostgreSQL for automata main app
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  auth:
+    username: postgres
+    password: postgres
+  resources:
+    {}
+
+# Matrix Synapse configuration
+matrix:
+  enabled: true
+  serverName: matrix.example.com
+  registrationEnabled: false
+  adminPassword: ""
+  signingKey: ""
+  macaroonSecret: ""
+  expireMacaroonSecretKey: ""
+  picoidKey: ""
+  image:
+    repository: matrixdotorg/synapse
+    tag: "v1.97.0"
+  postgresql:
+    image:
+      repository: postgres
+      tag: "16"
+    auth:
+      username: postgres
+      password: postgres
+    resources:
+      {}
+  ingressPaths:
+    - path: /_matrix
+      pathType: ImplementationSpecific
+      port: 8008
+    - path: /_synapse
+      pathType: ImplementationSpecific
+      port: 8008
+  resources:
+    {}
+
+# Temporal configuration
+temporal:
+  enabled: true
+  image:
+    repository: temporalio/auto-setup
+    tag: "1.26.2"
+  postgresql:
+    image:
+      repository: postgres
+      tag: "16"
+    auth:
+      username: postgres
+      password: postgres
+    resources:
+      {}
+  resources:
+    {}
+
 tailscale:
   # Enable Tailscale Ingress custom resource generation
   enabled: true
@@ -106,14 +168,14 @@ resources: {}
   #   memory: 128Mi
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-livenessProbe:
-  httpGet:
-    path: /up
-    port: http
-readinessProbe:
-  httpGet:
-    path: /up
-    port: http
+# livenessProbe:
+#   httpGet:
+#     path: /up
+#     port: http
+# readinessProbe:
+#   httpGet:
+#     path: /up
+#     port: http
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
