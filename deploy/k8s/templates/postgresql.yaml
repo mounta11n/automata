@@ -1,0 +1,309 @@
+{{- if .Values.postgresql.enabled }}
+{{- $pgUser := .Values.postgresql.auth.username }}
+{{- $pgPass := .Values.postgresql.auth.password }}
+{{- $pgImage := printf "%s:%s" .Values.postgresql.image.repository (.Values.postgresql.image.tag | default "16") }}
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: automata-core-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  serviceName: automata-core-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automata.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "automata.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: postgresql
+          image: "{{ $pgImage }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ $pgUser | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ $pgPass }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ $pgUser | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ $pgUser | quote }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- if .Values.postgresql.resources }}
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 10 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    sleep 5
+                    psql -U {{ $pgUser }} -c "CREATE DATABASE automata;" 2>/dev/null || true
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automata-core-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      protocol: TCP
+  selector:
+    {{- include "automata.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+{{- end }}
+
+{{- if .Values.matrix.enabled }}
+{{- $matrixPgRepo := .Values.matrix.postgresql.image.repository | default "postgres" }}
+{{- $matrixPgTag := .Values.matrix.postgresql.image.tag | default "16" }}
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-postgresql
+spec:
+  serviceName: {{ include "automata.fullname" . }}-matrix-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automata.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: matrix-postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "automata.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: matrix-postgresql
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: postgresql
+          image: "{{ $matrixPgRepo }}:{{ $matrixPgTag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.matrix.postgresql.auth.username | default "postgres" | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.matrix.postgresql.auth.password | default "postgres" }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.matrix.postgresql.auth.username | default "postgres" | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.matrix.postgresql.auth.username | default "postgres" | quote }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- if .Values.matrix.postgresql.resources }}
+          resources:
+            {{- toYaml .Values.matrix.postgresql.resources | nindent 10 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    sleep 5
+                    psql -U {{ .Values.matrix.postgresql.auth.username | default "postgres" }} -c "SELECT 1 FROM pg_database WHERE datname='synapse'" | grep -q 1 || \
+                      psql -U {{ .Values.matrix.postgresql.auth.username | default "postgres" }} -c "CREATE DATABASE synapse WITH LC_COLLATE='C' LC_CTYPE='C' TEMPLATE=template0;"
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      protocol: TCP
+  selector:
+    {{- include "automata.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-postgresql
+{{- end }}
+
+{{- if .Values.temporal.enabled }}
+{{- $temporalPgRepo := .Values.temporal.postgresql.image.repository | default "postgres" }}
+{{- $temporalPgTag := .Values.temporal.postgresql.image.tag | default "16" }}
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "automata.fullname" . }}-temporal-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-postgresql
+spec:
+  serviceName: {{ include "automata.fullname" . }}-temporal-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automata.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: temporal-postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "automata.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: temporal-postgresql
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: postgresql
+          image: "{{ $temporalPgRepo }}:{{ $temporalPgTag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.temporal.postgresql.auth.username | default "postgres" | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.temporal.postgresql.auth.password | default "postgres" }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.temporal.postgresql.auth.username | default "postgres" | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.temporal.postgresql.auth.username | default "postgres" | quote }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- if .Values.temporal.postgresql.resources }}
+          resources:
+            {{- toYaml .Values.temporal.postgresql.resources | nindent 10 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    sleep 5
+                    for db in temporal temporal_visibility temporal_nexus; do
+                      psql -U {{ .Values.temporal.postgresql.auth.username | default "postgres" }} -c "CREATE DATABASE $db;" 2>/dev/null || true
+                    done
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "automata.fullname" . }}-temporal-postgres
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      protocol: TCP
+  selector:
+    {{- include "automata.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-postgresql
+{{- end }}

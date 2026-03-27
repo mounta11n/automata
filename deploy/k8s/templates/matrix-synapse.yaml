@@ -1,0 +1,209 @@
+{{- if .Values.matrix.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix-homeserver
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+data:
+  homeserver.yaml: |
+    server_name: {{ .Values.matrix.serverName }}
+    pid_file: /homeserver.pid
+    web_client: false
+    usage_stats: false
+    report_stats: false
+    enable_registration: {{ .Values.matrix.registrationEnabled }}
+    suppress_key_server_warning: true
+    database:
+      name: psycopg2
+      args:
+        database: synapse
+        user: {{ $.Values.matrix.postgresql.auth.username | default "postgres" }}
+        password: {{ $.Values.matrix.postgresql.auth.password | default "postgres" }}
+        host: {{ include "automata.fullname" $ }}-matrix-postgres
+        port: 5432
+      allow_unsafe_locale: true
+    log_config: /data/log.yaml
+    media_store_path: /data/media_store
+    media_retention:
+      remote_cache_days: 28
+    listeners:
+      - port: 8008
+        tls: false
+        type: http
+        x_forwarded: true
+        bind_addresses: ['::']
+        resources:
+          - names: [client, federation]
+            compress: false
+    max_upload_size: 10M
+    enable_acr_values: false
+    macaroon_secret_key: {{ .Values.matrix.macaroonSecret | default (randAlphaNum 32) }}
+    expmacaroon_secret_key: {{ .Values.matrix.expireMacaroonSecretKey | default (randAlphaNum 32) }}
+    signing_key_path: /data/sign.key
+    old_signing_keys: {}
+    key_refresh_interval: 1d
+    refresh_oidc_throttle: 5s
+    oic_response_type_to_token_scope: array
+    trusted_key_servers:
+      - server_name: matrix.org
+    turn_uris: []
+    turn_user_lifetime: 1h
+    turn_ignore_tls_verify: false
+    picoid_key: {{ .Values.matrix.picoidKey | default (randAlphaNum 32) }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix-admin
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+type: Opaque
+stringData:
+  admin-password: {{ .Values.matrix.adminPassword | default (randAlphaNum 24) | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix-signing-key
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+type: Opaque
+stringData:
+  sign.key: |
+    {{ .Values.matrix.signingKey | default (randBytes 32) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8008
+      targetPort: http
+      protocol: TCP
+    - name: https
+      port: 8448
+      targetPort: https
+      protocol: TCP
+  selector:
+    {{- include "automata.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automata.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: matrix-synapse
+  template:
+    metadata:
+      labels:
+        {{- include "automata.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: matrix-synapse
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 991
+        runAsGroup: 991
+        fsGroup: 991
+      initContainers:
+        - name: init-synapse
+          image: "{{ .Values.matrix.image.repository }}:{{ .Values.matrix.image.tag | default "v1.97.0" }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Setting up config files..."
+              cp /config/homeserver.yaml /data/
+              cp /keys/sign.key /data/sign.key
+              if [ ! -f /data/log.yaml ]; then echo "version: 1" > /data/log.yaml; fi
+              echo "Initialization complete"
+          {{- if .Values.matrix.resources }}
+          resources:
+            {{- toYaml .Values.matrix.resources | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+            - name: signing-key
+              mountPath: /keys
+              readOnly: true
+      containers:
+        - name: matrix-synapse
+          image: "{{ .Values.matrix.image.repository }}:{{ .Values.matrix.image.tag | default "v1.97.0" }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8008
+              protocol: TCP
+            - name: https
+              containerPort: 8448
+              protocol: TCP
+          env:
+            - name: SYNAPSE_CONFIG_DIR
+              value: /data
+          livenessProbe:
+            httpGet:
+              path: /_matrix/client/versions
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /_matrix/client/versions
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          {{- if .Values.matrix.resources }}
+          resources:
+            {{- toYaml .Values.matrix.resources | nindent 10 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: signing-key
+              mountPath: /keys
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "automata.fullname" . }}-matrix-homeserver
+        - name: signing-key
+          secret:
+            secretName: {{ include "automata.fullname" . }}-matrix-signing-key
+{{- end }}

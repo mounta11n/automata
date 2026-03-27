@@ -1,0 +1,20 @@
+FROM elixir:1.18
+
+RUN apt-get update && apt-get install -y git nodejs npm inotify-tools && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN git clone --depth 1 https://github.com/sentientwave/automata /app
+
+WORKDIR /app/apps/sentientwave_automata_web
+
+RUN mix local.hex --force && mix local.rebar --force && mix deps.get
+
+RUN MIX_ENV=prod mix assets.setup && MIX_ENV=prod mix assets.build
+
+ENV MIX_ENV=prod
+ENV PHX_HOST=localhost
+ENV SECRET_KEY_BASE=test
+ENV DATABASE_URL=ecto://postgres:postgres@localhost/automata
+
+CMD ["mix", "phx.server"]

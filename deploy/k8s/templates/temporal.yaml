@@ -1,0 +1,74 @@
+{{- if .Values.temporal.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "automata.fullname" . }}-temporal
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal
+spec:
+  selector:
+    {{- include "automata.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal
+  ports:
+    - name: grpc
+      port: 7233
+      targetPort: 7233
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automata.fullname" . }}-temporal
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automata.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: temporal
+  template:
+    metadata:
+      labels:
+        {{- include "automata.labels" . | nindent 8 }}
+        app.kubernetes.io/component: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: "{{ .Values.temporal.image.repository }}:{{ .Values.temporal.image.tag | default "1.26.2" }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB
+              value: postgres12
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: {{ .Values.temporal.postgresql.auth.username | default "postgres" | quote }}
+            - name: POSTGRES_PWD
+              value: {{ .Values.temporal.postgresql.auth.password | default "postgres" }}
+            - name: POSTGRES_SEEDS
+              value: {{ include "automata.fullname" . }}-temporal-postgres
+          ports:
+            - name: grpc
+              containerPort: 7233
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if .Values.temporal.resources }}
+          resources:
+            {{- toYaml .Values.temporal.resources | nindent 10 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+{{- end }}
