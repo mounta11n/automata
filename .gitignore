@@ -27,4 +27,5 @@ erl_crash.dump
 .DS_Store
 *.swp
 
-priv/static
+**/priv/static
+**/.kube
