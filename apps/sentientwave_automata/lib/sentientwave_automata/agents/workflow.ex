@@ -5,6 +5,7 @@ defmodule SentientwaveAutomata.Agents.Workflow do
 
   use TemporalSdk.Workflow
 
+  alias SentientwaveAutomata.Agents.LawCompliance
   alias SentientwaveAutomata.Temporal
 
   @activity SentientwaveAutomata.Agents.WorkflowActivities
@@ -74,7 +75,33 @@ defmodule SentientwaveAutomata.Agents.Workflow do
         {response, nil}
       end
 
-    _ = activity("post_response", %{run_id: run_id, attrs: attrs, response: response})
+    certification =
+      activity("certify_response", %{
+        run_id: run_id,
+        attrs: attrs,
+        context: compacted_context,
+        response: response
+      })
+
+    {final_response, final_status, final_error, delivery_mode} =
+      case LawCompliance.certified?(certification) do
+        true ->
+          {response, :succeeded, %{}, "certified_response"}
+
+        false ->
+          {
+            LawCompliance.blocked_response(certification),
+            :failed,
+            %{
+              reason: "Agent response was blocked by the law certification guard.",
+              kind: "law_certification_blocked",
+              certification: certification
+            },
+            "lawful_fallback"
+          }
+      end
+
+    _ = activity("post_response", %{run_id: run_id, attrs: attrs, response: final_response})
 
     memory_context = attach_research_context(compacted_context, research_result)
 
@@ -83,24 +110,26 @@ defmodule SentientwaveAutomata.Agents.Workflow do
         run_id: run_id,
         attrs: attrs,
         context: memory_context,
-        response: response
+        response: final_response
       })
 
     _ =
       activity("mark_run_status", %{
         run_id: run_id,
-        status: :succeeded,
+        status: final_status,
         updates: %{
           result: %{
-            response: response,
+            response: final_response,
             context: %{
               total_items: get_in(compacted_context, [:stats, :total_items]),
               total_chars: get_in(compacted_context, [:stats, :total_chars]),
               compaction: Map.get(compacted_context, :compaction, %{})
             },
-            research: research_result || %{"mode" => "standard"}
+            research: research_result || %{"mode" => "standard"},
+            certification: certification,
+            delivery_mode: delivery_mode
           },
-          error: %{}
+          error: final_error
         }
       })
 
@@ -112,7 +141,7 @@ defmodule SentientwaveAutomata.Agents.Workflow do
         fetch_attr(attrs, "workflow_id")
       )
 
-    %{response: response, context: compacted_context}
+    %{response: final_response, context: compacted_context, certification: certification}
   rescue
     error ->
       reason = Exception.message(error)

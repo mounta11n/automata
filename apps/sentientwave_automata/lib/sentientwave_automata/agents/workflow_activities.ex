@@ -8,6 +8,7 @@ defmodule SentientwaveAutomata.Agents.WorkflowActivities do
   alias SentientwaveAutomata.Agents
   alias SentientwaveAutomata.Agents.Activities
   alias SentientwaveAutomata.Agents.DeepResearch
+  alias SentientwaveAutomata.Agents.LawCompliance
   alias SentientwaveAutomata.Agents.LLM.Client
   alias SentientwaveAutomata.Agents.Run
   alias SentientwaveAutomata.Agents.Tools.Executor
@@ -183,6 +184,28 @@ defmodule SentientwaveAutomata.Agents.WorkflowActivities do
 
       [response]
     end)
+  end
+
+  def execute(
+        _context,
+        [
+          %{
+            "step" => "certify_response",
+            "run_id" => run_id,
+            "attrs" => attrs,
+            "context" => workflow_context,
+            "response" => response
+          }
+        ]
+      ) do
+    run = fetch_run!(run_id)
+
+    [
+      unwrap_result!(
+        LawCompliance.certify_response(run, attrs, workflow_context, response),
+        "certify response"
+      )
+    ]
   end
 
   def execute(

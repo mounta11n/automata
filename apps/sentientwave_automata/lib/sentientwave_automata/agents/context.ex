@@ -106,6 +106,22 @@ defmodule SentientwaveAutomata.Agents.Runtime do
     |> String.trim()
   end
 
+  @spec constitution_laws(map() | nil) :: [map()]
+  def constitution_laws(snapshot_or_reference \\ nil) do
+    snapshot =
+      snapshot_or_reference
+      |> resolve_constitution_snapshot()
+      |> case do
+        nil -> current_constitution_snapshot()
+        value -> value
+      end
+
+    snapshot
+    |> snapshot_laws()
+    |> Enum.map(&normalize_constitution_law/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
   def create_skill(attrs) when is_map(attrs) do
     Agents.create_skill(attrs)
   end
@@ -415,6 +431,53 @@ defmodule SentientwaveAutomata.Agents.Runtime do
 
   defp snapshot_prompt_text(_), do: nil
 
+  defp snapshot_laws(%{law_memberships: memberships})
+       when is_list(memberships) and memberships != [] do
+    Enum.map(memberships, fn membership ->
+      map_fetch(membership, [:law, "law"]) || membership
+    end)
+  end
+
+  defp snapshot_laws(%{laws: laws}) when is_list(laws), do: laws
+  defp snapshot_laws(_), do: []
+
+  defp normalize_constitution_law(nil), do: nil
+
+  defp normalize_constitution_law(%_{} = struct) do
+    struct
+    |> Map.from_struct()
+    |> normalize_constitution_law()
+  end
+
+  defp normalize_constitution_law(law) when is_map(law) do
+    slug = map_fetch(law, [:slug, "slug"])
+    name = map_fetch(law, [:name, "name"])
+    markdown_body = map_fetch(law, [:markdown_body, "markdown_body", :body, "body"])
+    law_kind = normalize_law_kind(map_fetch(law, [:law_kind, "law_kind"]))
+    version = map_fetch(law, [:version, "version"])
+    position = map_fetch(law, [:position, "position"])
+    prompt_text = snapshot_prompt_text(law)
+
+    if Enum.all?([slug, name, markdown_body, prompt_text], &is_nil/1) do
+      nil
+    else
+      %{
+        "id" => map_fetch(law, [:id, "id"]),
+        "slug" => slug,
+        "name" => name,
+        "markdown_body" => markdown_body,
+        "law_kind" => law_kind,
+        "version" => version,
+        "position" => position,
+        "prompt_text" => prompt_text
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+    end
+  end
+
+  defp normalize_constitution_law(_), do: nil
+
   defp constitution_source_module do
     Application.get_env(
       :sentientwave_automata,
@@ -426,6 +489,10 @@ defmodule SentientwaveAutomata.Agents.Runtime do
   defp map_fetch(map, keys) do
     Enum.find_value(keys, fn key -> Map.get(map, key) end)
   end
+
+  defp normalize_law_kind(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_law_kind(value) when is_binary(value), do: String.trim(value)
+  defp normalize_law_kind(_), do: nil
 
   defp has_text?(value) when is_binary(value), do: String.trim(value) != ""
   defp has_text?(_), do: false
