@@ -248,6 +248,64 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
     end
   end
 
+  @spec certify_decision(keyword()) :: {:ok, map()} | {:error, term()}
+  def certify_decision(opts) when is_list(opts) do
+    effective = Settings.llm_provider_effective()
+    provider = Keyword.get(opts, :provider, effective.provider)
+    model = Keyword.get(opts, :model, effective.model)
+    timeout_seconds = Keyword.get(opts, :timeout_seconds, effective.timeout_seconds || 600)
+    agent_id = Keyword.get(opts, :agent_id)
+    trace_context = Keyword.get(opts, :trace_context, %{})
+    decision_type = normalize_decision_type(Keyword.get(opts, :decision_type, "decision"))
+    decision_payload = normalize_decision_payload(Keyword.get(opts, :decision_payload, %{}))
+    constitution_snapshot = Keyword.get(opts, :constitution_snapshot)
+    constitution_prompt_text = Runtime.constitution_prompt_text(constitution_snapshot)
+    evaluated_laws = Runtime.constitution_laws(constitution_snapshot)
+
+    provider_opts =
+      [
+        model: model,
+        timeout_seconds: timeout_seconds,
+        agent_id: agent_id,
+        room_id: Keyword.get(opts, :room_id),
+        trace_context: trace_context,
+        provider: provider,
+        provider_config_id: effective.id
+      ]
+      |> maybe_put_provider_opt(:base_url, effective.base_url)
+      |> maybe_put_provider_opt(:api_key, effective.api_token)
+
+    with {:ok, module} <- provider_module(provider),
+         {:ok, response} <-
+           traced_complete(
+             module,
+             certification_messages(
+               decision_type,
+               decision_payload,
+               constitution_prompt_text,
+               evaluated_laws
+             ),
+             provider_opts,
+             "law_certification",
+             0
+           ),
+         {:ok, payload} <- extract_json_object(response) do
+      {:ok,
+       normalize_law_certification(
+         payload,
+         decision_type,
+         constitution_snapshot,
+         evaluated_laws
+       )}
+    else
+      {:error, reason} ->
+        {:error, reason}
+
+      _ ->
+        {:error, :invalid_law_certification_response}
+    end
+  end
+
   defp provider_module("openai"), do: {:ok, SentientwaveAutomata.Agents.LLM.Providers.OpenAI}
 
   defp provider_module("openrouter"),
@@ -467,6 +525,32 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
     }
   end
 
+  defp certification_messages(decision_type, decision_payload, constitution_prompt_text, laws) do
+    [
+      %{
+        "role" => "system",
+        "content" =>
+          "You are the Automata governance law compliance certifier. " <>
+            "Evaluate whether the proposed agent decision satisfies the current constitution. " <>
+            "Return ONLY JSON with keys certified, summary, violations, and optional block_message. " <>
+            "Each violation must be an object with law_slug, law_name, and reason. " <>
+            "Set certified=false if the decision violates any law or you cannot certify it."
+      }
+    ] ++
+      constitution_messages(constitution_prompt_text) ++
+      [
+        %{
+          "role" => "user",
+          "content" =>
+            Jason.encode!(%{
+              "decision_type" => decision_type,
+              "decision" => decision_payload,
+              "laws" => normalize_evaluated_laws(laws)
+            })
+        }
+      ]
+  end
+
   defp tool_specs(tools) do
     Enum.map(tools, fn tool ->
       %{
@@ -673,6 +757,151 @@ defmodule SentientwaveAutomata.Agents.LLM.Client do
       _ -> {:error, :no_json_object}
     end
   end
+
+  defp normalize_law_certification(payload, decision_type, constitution_snapshot, laws)
+       when is_map(payload) do
+    snapshot_reference = Runtime.constitution_snapshot_reference(constitution_snapshot) || %{}
+    evaluated_laws = normalize_evaluated_laws(laws)
+    violations = normalize_certification_violations(Map.get(payload, "violations"))
+
+    certified =
+      truthy?(Map.get(payload, "certified")) and violations == []
+
+    summary =
+      payload
+      |> Map.get("summary")
+      |> normalize_certification_text()
+      |> case do
+        "" when certified ->
+          "The proposed #{decision_type} satisfies the current constitution."
+
+        "" ->
+          "The proposed #{decision_type} could not be certified against the current constitution."
+
+        value ->
+          value
+      end
+
+    %{
+      "decision_type" => decision_type,
+      "certified" => certified,
+      "enforcement" => if(certified, do: "allowed", else: "blocked"),
+      "summary" => summary,
+      "violations" => violations,
+      "constitution_snapshot_id" => snapshot_reference[:id],
+      "constitution_version" => snapshot_reference[:version],
+      "law_count" => length(evaluated_laws),
+      "evaluated_laws" => evaluated_laws,
+      "checked_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+    |> maybe_put_certification_block_message(payload, certified)
+  end
+
+  defp normalize_law_certification(_payload, decision_type, constitution_snapshot, laws) do
+    normalize_law_certification(%{}, decision_type, constitution_snapshot, laws)
+  end
+
+  defp maybe_put_certification_block_message(certification, _payload, true), do: certification
+
+  defp maybe_put_certification_block_message(certification, payload, false) do
+    block_message =
+      payload
+      |> Map.get("block_message", "")
+      |> normalize_certification_text()
+
+    if block_message == "" do
+      certification
+    else
+      Map.put(certification, "block_message", block_message)
+    end
+  end
+
+  defp normalize_certification_violations(violations) when is_list(violations) do
+    violations
+    |> Enum.map(fn
+      %{} = violation ->
+        %{
+          "law_slug" => violation |> Map.get("law_slug", Map.get(violation, :law_slug)),
+          "law_name" => violation |> Map.get("law_name", Map.get(violation, :law_name)),
+          "reason" => violation |> Map.get("reason", Map.get(violation, :reason))
+        }
+        |> Enum.map(fn {key, value} -> {key, normalize_certification_text(value)} end)
+        |> Enum.reject(fn {_key, value} -> value == "" end)
+        |> Map.new()
+
+      _ ->
+        %{}
+    end)
+    |> Enum.reject(&(&1 == %{}))
+  end
+
+  defp normalize_certification_violations(_violations), do: []
+
+  defp normalize_evaluated_laws(laws) when is_list(laws) do
+    Enum.map(laws, fn law ->
+      %{
+        "id" => Map.get(law, "id"),
+        "slug" => law |> Map.get("slug", Map.get(law, :slug)),
+        "name" => law |> Map.get("name", Map.get(law, :name)),
+        "law_kind" => law |> Map.get("law_kind", Map.get(law, :law_kind)),
+        "markdown_body" => law |> Map.get("markdown_body", Map.get(law, :markdown_body)),
+        "prompt_text" => law |> Map.get("prompt_text", Map.get(law, :prompt_text)),
+        "version" => law |> Map.get("version", Map.get(law, :version)),
+        "position" => law |> Map.get("position", Map.get(law, :position))
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+    end)
+  end
+
+  defp normalize_evaluated_laws(_laws), do: []
+
+  defp normalize_decision_type(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> "decision"
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_decision_payload(%{} = payload) do
+    payload
+    |> Enum.map(fn {key, value} -> {to_string(key), normalize_decision_value(value)} end)
+    |> Map.new()
+  end
+
+  defp normalize_decision_payload(payload) do
+    %{"value" => normalize_decision_value(payload)}
+  end
+
+  defp normalize_decision_value(value) when is_binary(value), do: String.trim(value)
+  defp normalize_decision_value(value) when is_boolean(value), do: value
+  defp normalize_decision_value(value) when is_integer(value), do: value
+  defp normalize_decision_value(value) when is_float(value), do: value
+  defp normalize_decision_value(nil), do: nil
+  defp normalize_decision_value(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp normalize_decision_value(value) when is_list(value) do
+    Enum.map(value, &normalize_decision_value/1)
+  end
+
+  defp normalize_decision_value(value) when is_map(value) do
+    value
+    |> Enum.map(fn {key, entry} -> {to_string(key), normalize_decision_value(entry)} end)
+    |> Map.new()
+  end
+
+  defp normalize_decision_value(value), do: inspect(value)
+
+  defp normalize_certification_text(value) do
+    value
+    |> to_string()
+    |> String.trim()
+  end
+
+  defp truthy?(value), do: value in [true, "true", "TRUE", "1", 1]
 
   defp explicit_deep_research?(opts) do
     Keyword.get(opts, :deep_research) in [true, "true", "1"] or

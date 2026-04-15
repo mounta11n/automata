@@ -1,0 +1,59 @@
+{{- if and .Values.matrix.enabled .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "automata.fullname" . }}-matrix
+  labels:
+    {{- include "automata.labels" . | nindent 4 }}
+    app.kubernetes.io/component: matrix-synapse
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- if $.Values.matrix.ingressPaths }}
+          {{- range $.Values.matrix.ingressPaths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "ImplementationSpecific" }}
+            backend:
+              service:
+                name: {{ include "automata.fullname" $ }}-matrix
+                port:
+                  number: {{ .port | default 8008 }}
+          {{- end }}
+          {{- else }}
+          - path: /_matrix
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "automata.fullname" $ }}-matrix
+                port:
+                  number: 8008
+          - path: /_synapse
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "automata.fullname" $ }}-matrix
+                port:
+                  number: 8008
+          {{- end }}
+    {{- end }}
+  tls:
+    {{- range .Values.ingress.hosts }}
+    - hosts:
+        - {{ .host | quote }}
+      {{- if $.Values.ingress.tlsSecret }}
+      secretName: {{ $.Values.ingress.tlsSecret }}
+      {{- else }}
+      secretName: {{ include "automata.fullname" $ }}-matrix-tls
+      {{- end }}
+    {{- end }}
+{{- end }}
