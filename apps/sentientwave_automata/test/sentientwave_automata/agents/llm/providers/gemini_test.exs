@@ -223,10 +223,12 @@ defmodule SentientwaveAutomata.Agents.LLM.Providers.GeminiTest do
     |> String.split("\r\n")
     |> Enum.find_value(0, fn line ->
       case String.split(line, ":", parts: 2) do
-        [name, value] when String.downcase(name) == "content-length" ->
-          value
-          |> String.trim()
-          |> String.to_integer()
+        [name, value] ->
+          if String.downcase(name) == "content-length" do
+            value
+            |> String.trim()
+            |> String.to_integer()
+          end
 
         _ ->
           nil

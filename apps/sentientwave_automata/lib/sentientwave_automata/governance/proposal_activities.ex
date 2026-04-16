@@ -247,18 +247,28 @@ defmodule SentientwaveAutomata.Governance.ProposalActivities do
   end
 
   defp post_governance_message(room_id, message) do
-    room_id = room_id || Room.room_id()
-
-    case matrix_adapter().post_message(room_id, message, %{"kind" => "governance_update"}) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning(
-          "governance_update_post_failed room_id=#{inspect(room_id)} reason=#{inspect(reason)}"
-        )
+    case room_id || Room.room_id() do
+      nil ->
+        Logger.warning("governance_update_post_skipped reason=:governance_room_not_configured")
 
         :ok
+
+      resolved_room_id ->
+        case matrix_adapter().post_message(
+               resolved_room_id,
+               message,
+               %{"kind" => "governance_update"}
+             ) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning(
+              "governance_update_post_failed room_id=#{inspect(resolved_room_id)} reason=#{inspect(reason)}"
+            )
+
+            :ok
+        end
     end
   end
 

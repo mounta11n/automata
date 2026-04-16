@@ -79,17 +79,29 @@
       <div class="sw-qr-grid">
         <div>
           <p class="sw-qr-title">Setup QR</p>
-          <img src={user.login_qr_url} alt={"Setup QR for #{user.mxid}"} class="sw-qr-image" />
+          <img
+            :if={user.login_qr_url}
+            src={user.login_qr_url}
+            alt={"Setup QR for #{user.mxid}"}
+            class="sw-qr-image"
+          />
+          <p :if={!user.login_qr_url} class="sw-muted-copy">
+            QR generation is disabled until <code>AUTOMATA_QR_BASE_URL</code>
+            points at a trusted generator.
+          </p>
         </div>
         <div>
           <p class="sw-qr-title">Room QR</p>
           <img
-            :if={user.room_url != ""}
+            :if={user.room_qr_url}
             src={user.room_qr_url}
             alt={"Room QR for #{user.mxid}"}
             class="sw-qr-image"
           />
           <p :if={user.room_url == ""} class="sw-muted-copy">No room link available.</p>
+          <p :if={user.room_url != "" and !user.room_qr_url} class="sw-muted-copy">
+            Room QR is disabled until <code>AUTOMATA_QR_BASE_URL</code> is configured.
+          </p>
         </div>
       </div>
 
