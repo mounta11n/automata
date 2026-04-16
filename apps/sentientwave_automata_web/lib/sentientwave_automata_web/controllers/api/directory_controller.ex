@@ -7,7 +7,7 @@ defmodule SentientwaveAutomataWeb.API.DirectoryController do
   def index(conn, _params) do
     conn
     |> put_status(:ok)
-    |> json(%{data: Directory.list_users()})
+    |> json(%{data: Enum.map(Directory.list_users(), &api_user/1)})
   end
 
   def upsert(conn, params) do
@@ -15,7 +15,7 @@ defmodule SentientwaveAutomataWeb.API.DirectoryController do
       {:ok, user} ->
         conn
         |> put_status(:ok)
-        |> json(%{data: user})
+        |> json(%{data: api_user(user)})
 
       {:error, errors} ->
         conn
@@ -29,4 +29,6 @@ defmodule SentientwaveAutomataWeb.API.DirectoryController do
     |> put_status(:ok)
     |> json(%{data: Reconciler.reconcile()})
   end
+
+  defp api_user(user) when is_map(user), do: Map.delete(user, :password)
 end

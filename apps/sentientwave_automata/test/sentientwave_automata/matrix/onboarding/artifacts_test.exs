@@ -27,5 +27,7 @@ defmodule SentientwaveAutomata.Matrix.Onboarding.ArtifactsTest do
     [first | _] = artifacts.users
     assert String.starts_with?(first.onboarding_url, "http://localhost:4000/onboarding/user?")
     assert first.password_display != "(hidden until explicitly enabled)"
+    assert first.login_qr_url == nil
+    refute String.contains?(first.login_url, "password=")
   end
 end

@@ -49,7 +49,7 @@ defmodule SentientwaveAutomata.Orchestration.ConversationWorkflowTest do
       assert metadata["workflow_id"] == workflow.workflow_id
       assert metadata["kind"] == "conversation_workflow_started"
 
-      assert [%{"workflow_id" => ^workflow.workflow_id, "status" => "succeeded"}] =
+      assert [%{"workflow_id" => marked_workflow_id, "status" => "succeeded"}] =
                Activities.execute(nil, [
                  %{
                    "step" => "mark_status",
@@ -58,6 +58,8 @@ defmodule SentientwaveAutomata.Orchestration.ConversationWorkflowTest do
                    "result" => posted
                  }
                ])
+
+      assert marked_workflow_id == workflow.workflow_id
 
       reloaded = Repo.get_by!(Workflow, workflow_id: workflow.workflow_id)
       assert reloaded.status == :succeeded
@@ -106,7 +108,7 @@ defmodule SentientwaveAutomata.Orchestration.ConversationWorkflowTest do
     test "mark_status accepts nested activity result payloads and stores a map" do
       workflow = insert_workflow()
 
-      assert [%{"workflow_id" => ^workflow.workflow_id, "status" => "succeeded"}] =
+      assert [%{"workflow_id" => marked_workflow_id, "status" => "succeeded"}] =
                Activities.execute(nil, [
                  %{
                    "step" => "mark_status",
@@ -117,6 +119,8 @@ defmodule SentientwaveAutomata.Orchestration.ConversationWorkflowTest do
                    ]
                  }
                ])
+
+      assert marked_workflow_id == workflow.workflow_id
 
       reloaded = Repo.get_by!(Workflow, workflow_id: workflow.workflow_id)
       assert reloaded.status == :succeeded

@@ -19,7 +19,9 @@ defmodule SentientwaveAutomataWeb.API.DirectoryControllerTest do
         "password" => "qauser-pass-01"
       })
 
-    assert json_response(conn, 200)["data"]["localpart"] == "qauser"
+    response = json_response(conn, 200)["data"]
+    assert response["localpart"] == "qauser"
+    refute Map.has_key?(response, "password")
 
     conn =
       get(
@@ -27,6 +29,8 @@ defmodule SentientwaveAutomataWeb.API.DirectoryControllerTest do
         ~p"/api/v1/directory/users"
       )
 
-    assert Enum.any?(json_response(conn, 200)["data"], &(&1["localpart"] == "qauser"))
+    users = json_response(conn, 200)["data"]
+    assert Enum.any?(users, &(&1["localpart"] == "qauser"))
+    assert Enum.all?(users, &(not Map.has_key?(&1, "password")))
   end
 end

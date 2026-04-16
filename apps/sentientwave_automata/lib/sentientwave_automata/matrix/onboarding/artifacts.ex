@@ -3,8 +3,6 @@ defmodule SentientwaveAutomata.Matrix.Onboarding.Artifacts do
   Builds per-user onboarding artifacts for Matrix client setup.
   """
 
-  @qr_base_default "https://api.qrserver.com/v1/create-qr-code/"
-
   @spec build(map(), keyword()) :: map()
   def build(status, opts \\ []) do
     homeserver_domain =
@@ -95,7 +93,7 @@ defmodule SentientwaveAutomata.Matrix.Onboarding.Artifacts do
       login_url: login_url,
       room_url: room_url,
       onboarding_url: onboarding_url,
-      login_qr_url: qr_url(onboarding_url),
+      login_qr_url: qr_url(login_url),
       room_qr_url: qr_url(room_url)
     }
   end
@@ -122,10 +120,15 @@ defmodule SentientwaveAutomata.Matrix.Onboarding.Artifacts do
     "#{base}?#{query}"
   end
 
-  defp qr_url(""), do: ""
+  defp qr_url(""), do: nil
 
   defp qr_url(payload) do
-    base = System.get_env("AUTOMATA_QR_BASE_URL", @qr_base_default)
-    "#{base}?size=220x220&data=#{URI.encode_www_form(payload)}"
+    case System.get_env("AUTOMATA_QR_BASE_URL", "") |> String.trim() do
+      "" ->
+        nil
+
+      base ->
+        "#{base}?size=220x220&data=#{URI.encode_www_form(payload)}"
+    end
   end
 end
