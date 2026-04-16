@@ -9,6 +9,7 @@ defmodule SentientwaveAutomataTemporal.Bootstrap do
   require Logger
 
   @reconcile_interval_ms 30_000
+  @verify_interval_ms 15_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -16,9 +17,29 @@ defmodule SentientwaveAutomataTemporal.Bootstrap do
 
   @impl true
   def init(_opts) do
-    verify_temporal!()
+    send(self(), :verify_temporal)
     send(self(), :reconcile)
-    {:ok, %{}}
+    {:ok, %{temporal_ready?: false}}
+  end
+
+  @impl true
+  def handle_info(:verify_temporal, state) do
+    next_state =
+      case verify_temporal() do
+        :ok ->
+          if not state.temporal_ready? do
+            Logger.info("temporal_bootstrap ready=true")
+          end
+
+          %{state | temporal_ready?: true}
+
+        {:error, reason} ->
+          Logger.warning("temporal_bootstrap ready=false reason=#{inspect(reason)}")
+          %{state | temporal_ready?: false}
+      end
+
+    Process.send_after(self(), :verify_temporal, @verify_interval_ms)
+    {:noreply, next_state}
   end
 
   @impl true
@@ -28,13 +49,15 @@ defmodule SentientwaveAutomataTemporal.Bootstrap do
     {:noreply, state}
   end
 
-  defp verify_temporal! do
+  defp verify_temporal do
     case TemporalSdk.Cluster.is_started(Temporal.cluster()) do
-      true -> :ok
-      {:error, reason} -> raise "Temporal cluster is not started: #{inspect(reason)}"
-      other -> raise "Temporal cluster is not ready: #{inspect(other)}"
+      true -> verify_health_workflow()
+      {:error, reason} -> {:error, {:cluster_not_started, reason}}
+      other -> {:error, {:cluster_not_ready, other}}
     end
+  end
 
+  defp verify_health_workflow do
     health_workflow_id =
       Temporal.generated_workflow_id("temporal_healthcheck_#{node()}")
 
@@ -54,10 +77,10 @@ defmodule SentientwaveAutomataTemporal.Bootstrap do
         :ok
 
       {:error, reason} ->
-        raise "Temporal health workflow failed to start: #{inspect(reason)}"
+        {:error, {:health_workflow_failed, reason}}
 
       other ->
-        raise "Temporal health workflow returned unexpected result: #{inspect(other)}"
+        {:error, {:health_workflow_unexpected, other}}
     end
   end
 

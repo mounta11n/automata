@@ -7,21 +7,20 @@ defmodule SentientwaveAutomata.Agents.Tools.HTTP do
     timeout = Keyword.get(opts, :timeout, default_timeout())
     connect_timeout = Keyword.get(opts, :connect_timeout, default_connect_timeout())
 
-    req_headers =
-      headers
-      |> Enum.map(fn {k, v} -> {to_charlist(k), to_charlist(v)} end)
-
-    req = {to_charlist(url), req_headers}
-    http_opts = [timeout: timeout, connect_timeout: connect_timeout]
-
-    case :httpc.request(:get, req, http_opts, body_format: :binary) do
-      {:ok, {{_, status, _}, _resp_headers, resp_body}} ->
-        decode_json(status, resp_body)
+    case Req.get(url,
+           headers: headers,
+           receive_timeout: timeout,
+           connect_options: [timeout: connect_timeout]
+         ) do
+      {:ok, %Req.Response{status: status, body: body}} ->
+        decode_json(status, body)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp decode_json(status, body) when is_map(body), do: {:ok, status, body}
 
   defp decode_json(status, body) when is_binary(body) do
     case Jason.decode(body) do
@@ -29,6 +28,8 @@ defmodule SentientwaveAutomata.Agents.Tools.HTTP do
       {:error, reason} -> {:error, {:invalid_json_response, reason, body}}
     end
   end
+
+  defp decode_json(_status, body), do: {:error, {:invalid_json_response, :unexpected_body, body}}
 
   defp default_timeout do
     System.get_env("AUTOMATA_TOOL_HTTP_TIMEOUT_MS", "12000")

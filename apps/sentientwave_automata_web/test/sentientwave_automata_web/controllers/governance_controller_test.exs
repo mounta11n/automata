@@ -1,8 +1,6 @@
 defmodule SentientwaveAutomataWeb.GovernanceControllerTest do
   use SentientwaveAutomataWeb.ConnCase
 
-  import Plug.Test, only: [init_test_session: 2]
-
   alias SentientwaveAutomata.Governance
   alias SentientwaveAutomata.Matrix.Directory
 

@@ -1,8 +1,6 @@
 defmodule SentientwaveAutomataWeb.PageControllerTest do
   use SentientwaveAutomataWeb.ConnCase
 
-  import Plug.Test, only: [init_test_session: 2]
-
   alias SentientwaveAutomata.Agents
   alias SentientwaveAutomata.Matrix.Directory
   alias SentientwaveAutomata.Settings

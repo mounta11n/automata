@@ -287,27 +287,37 @@ defmodule SentientwaveAutomata.Settings do
         "enabled" => true
       })
 
-    _ =
-      ensure_tool_config(%{
-        "name" => "System Directory Admin",
-        "slug" => "system-directory-admin",
-        "tool_name" => "system_directory_admin",
-        "base_url" => "",
-        "api_token" => "",
-        "enabled" => true
-      })
+    if bootstrap_privileged_tools?() do
+      _ =
+        ensure_tool_config(%{
+          "name" => "System Directory Admin",
+          "slug" => "system-directory-admin",
+          "tool_name" => "system_directory_admin",
+          "base_url" => "",
+          "api_token" => "",
+          "enabled" => true
+        })
 
-    _ =
-      ensure_tool_config(%{
-        "name" => "Run Shell",
-        "slug" => "run-shell",
-        "tool_name" => "run_shell",
-        "base_url" => "",
-        "api_token" => "",
-        "enabled" => true
-      })
+      _ =
+        ensure_tool_config(%{
+          "name" => "Run Shell",
+          "slug" => "run-shell",
+          "tool_name" => "run_shell",
+          "base_url" => "",
+          "api_token" => "",
+          "enabled" => true
+        })
+    end
 
     :ok
+  end
+
+  @spec bootstrap_privileged_tools?() :: boolean()
+  def bootstrap_privileged_tools? do
+    case System.get_env("AUTOMATA_BOOTSTRAP_PRIVILEGED_TOOLS") do
+      nil -> not RuntimeConfig.production?()
+      value -> value in ["1", "true", "TRUE", "yes", "YES"]
+    end
   end
 
   defp ensure_at_least_one_default! do

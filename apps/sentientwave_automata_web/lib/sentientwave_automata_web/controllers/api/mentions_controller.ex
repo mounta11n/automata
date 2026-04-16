@@ -52,19 +52,7 @@ defmodule SentientwaveAutomataWeb.API.MentionsController do
   end
 
   defp remote_ip(conn) do
-    forwarded =
-      conn
-      |> get_req_header("x-forwarded-for")
-      |> List.first()
-      |> case do
-        nil -> nil
-        value -> value |> String.split(",", parts: 2) |> List.first() |> String.trim()
-      end
-
     cond do
-      is_binary(forwarded) and forwarded != "" ->
-        forwarded
-
       is_tuple(conn.remote_ip) ->
         conn.remote_ip |> :inet.ntoa() |> to_string()
 

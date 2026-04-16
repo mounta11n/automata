@@ -1,8 +1,6 @@
 defmodule SentientwaveAutomataWeb.API.DirectoryControllerTest do
   use SentientwaveAutomataWeb.ConnCase
 
-  import Plug.Test, only: [init_test_session: 2]
-
   test "requires admin auth", %{conn: conn} do
     conn = get(conn, ~p"/api/v1/directory/users")
     assert json_response(conn, 401)["error"] == "admin_auth_required"
@@ -12,7 +10,9 @@ defmodule SentientwaveAutomataWeb.API.DirectoryControllerTest do
     conn = init_test_session(conn, automata_admin_authenticated: true)
 
     conn =
-      post(conn, ~p"/api/v1/directory/users", %{
+      conn
+      |> put_req_header("origin", "http://www.example.com")
+      |> post(~p"/api/v1/directory/users", %{
         "localpart" => "qauser",
         "kind" => "person",
         "display_name" => "QA User",

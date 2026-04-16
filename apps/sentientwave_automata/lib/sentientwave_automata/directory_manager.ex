@@ -9,7 +9,7 @@ defmodule SentientwaveAutomata.DirectoryManager do
   alias SentientwaveAutomata.Security.Passwords
 
   @type result :: %{
-          user: Directory.user(),
+          user: Directory.user_with_password(),
           generated_password: String.t() | nil,
           warnings: [String.t()]
         }
@@ -36,7 +36,7 @@ defmodule SentientwaveAutomata.DirectoryManager do
   @spec update_user(String.t(), map()) :: {:ok, result()} | {:error, term()}
   def update_user(existing_localpart, attrs)
       when is_binary(existing_localpart) and is_map(attrs) do
-    case Directory.get_user(existing_localpart) do
+    case Directory.get_user_with_password(existing_localpart) do
       nil ->
         {:error, :not_found}
 
@@ -72,7 +72,7 @@ defmodule SentientwaveAutomata.DirectoryManager do
 
   @spec rotate_password(String.t()) :: {:ok, result()} | {:error, term()}
   def rotate_password(localpart) when is_binary(localpart) do
-    case Directory.get_user(localpart) do
+    case Directory.get_user_with_password(localpart) do
       nil ->
         {:error, :not_found}
 
@@ -95,7 +95,7 @@ defmodule SentientwaveAutomata.DirectoryManager do
 
   @spec deactivate_user(String.t()) :: {:ok, [String.t()]} | {:error, term()}
   def deactivate_user(localpart) when is_binary(localpart) do
-    case Directory.get_user(localpart) do
+    case Directory.get_user_with_password(localpart) do
       nil ->
         {:error, :not_found}
 
@@ -108,7 +108,8 @@ defmodule SentientwaveAutomata.DirectoryManager do
     end
   end
 
-  @spec operational_status(Directory.user()) :: :online | :offline
+  @spec operational_status(Directory.public_user() | Directory.user_with_password()) ::
+          :online | :offline
   def operational_status(%{kind: kind} = user) when kind in [:agent, "agent"] do
     case Agents.get_agent_by_localpart(user.localpart) do
       %{status: :active, id: agent_id} ->

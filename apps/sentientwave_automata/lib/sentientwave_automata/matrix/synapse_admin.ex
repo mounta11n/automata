@@ -23,11 +23,13 @@ defmodule SentientwaveAutomata.Matrix.SynapseAdmin do
       {:error, :admin_login_failed} ->
         # Fallback path for drifted admin credentials on reused Matrix volumes.
         # This ensures user presence can still be reconciled via shared-secret registration.
-        with :ok <- register_with_shared_secret(user),
+        with true <- allow_shared_secret_registration?() || {:error, :admin_login_failed},
+             :ok <- register_with_shared_secret(user),
              :ok <- ensure_default_room_membership_without_admin(user) do
           :ok
         else
           {:error, reason} -> {:error, reason}
+          false -> {:error, :admin_login_failed}
         end
 
       {:error, reason} ->
@@ -589,6 +591,13 @@ defmodule SentientwaveAutomata.Matrix.SynapseAdmin do
         "YES"
       ]
 
+  defp allow_shared_secret_registration? do
+    case System.get_env("MATRIX_ALLOW_SHARED_SECRET_REGISTRATION") do
+      nil -> not SentientwaveAutomata.RuntimeConfig.production?()
+      value -> value in ["1", "true", "TRUE", "yes", "YES"]
+    end
+  end
+
   defp normalize_headers(headers) do
     Enum.map(headers, fn {k, v} -> {to_charlist(k), to_charlist(v)} end)
   end
@@ -601,7 +610,7 @@ defmodule SentientwaveAutomata.Matrix.SynapseAdmin do
   end
 
   defp directory_password(localpart) do
-    case SentientwaveAutomata.Matrix.Directory.get_user(localpart) do
+    case SentientwaveAutomata.Matrix.Directory.get_user_with_password(localpart) do
       %{password: pw} when is_binary(pw) -> pw
       _ -> ""
     end
