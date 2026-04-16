@@ -10,7 +10,7 @@ defmodule SentientwaveAutomata.Matrix.Reconciler do
   @spec reconcile() :: map()
   def reconcile do
     users =
-      Directory.list_users()
+      Directory.list_users_with_passwords()
       |> Kernel.++(persisted_agent_users())
       |> Enum.uniq_by(& &1.localpart)
 
@@ -21,7 +21,10 @@ defmodule SentientwaveAutomata.Matrix.Reconciler do
             %{acc | ok: [user.localpart | acc.ok]}
 
           {:error, reason} ->
-            %{acc | failed: [%{localpart: user.localpart, reason: inspect(reason)} | acc.failed]}
+            %{
+              acc
+              | failed: [%{localpart: user.localpart, reason: format_reason(reason)} | acc.failed]
+            }
         end
       end)
       |> reconcile_operator_invites()
@@ -38,7 +41,10 @@ defmodule SentientwaveAutomata.Matrix.Reconciler do
         result
 
       {:error, reason} ->
-        %{result | failed: [%{localpart: "automata", reason: inspect(reason)} | result.failed]}
+        %{
+          result
+          | failed: [%{localpart: "automata", reason: format_reason(reason)} | result.failed]
+        }
     end
   end
 
@@ -78,4 +84,12 @@ defmodule SentientwaveAutomata.Matrix.Reconciler do
       end
     end)
   end
+
+  defp format_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+
+  defp format_reason({tag, _detail}) when is_atom(tag), do: Atom.to_string(tag)
+
+  defp format_reason(reason) when is_binary(reason), do: reason
+
+  defp format_reason(reason), do: inspect(reason, pretty: false, limit: 20)
 end

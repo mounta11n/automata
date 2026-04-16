@@ -1,8 +1,6 @@
 defmodule SentientwaveAutomataWeb.API.SystemControllerTest do
   use SentientwaveAutomataWeb.ConnCase
 
-  import Plug.Test, only: [init_test_session: 2]
-
   test "GET /api/v1/system/status returns unauthorized when not authenticated", %{conn: conn} do
     conn = get(conn, ~p"/api/v1/system/status")
     body = json_response(conn, 401)

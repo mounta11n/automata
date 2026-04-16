@@ -18,10 +18,16 @@ defmodule SentientwaveAutomataWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :api_service do
+    plug :accepts, ["json"]
+    plug SentientwaveAutomataWeb.Plugs.RequireServiceAuth
+  end
+
   pipeline :api_admin do
     plug :accepts, ["json"]
     plug :fetch_session
     plug SentientwaveAutomataWeb.Plugs.RequireAdminAPI
+    plug SentientwaveAutomataWeb.Plugs.RequireSameOrigin
   end
 
   scope "/", SentientwaveAutomataWeb do
@@ -109,12 +115,11 @@ defmodule SentientwaveAutomataWeb.Router do
   end
 
   scope "/api/v1", SentientwaveAutomataWeb.API do
-    pipe_through :api
+    pipe_through :api_service
 
     post "/workflows", WorkflowController, :create
     get "/workflows", WorkflowController, :index
     post "/mentions", MentionsController, :create
-    post "/onboarding/validate", OnboardingController, :validate
   end
 
   scope "/api/v1", SentientwaveAutomataWeb.API do
@@ -128,5 +133,6 @@ defmodule SentientwaveAutomataWeb.Router do
     get "/agent-runs/:id", AgentRunsController, :show
     post "/agent-memories", AgentMemoriesController, :create
     get "/agent-memories/search", AgentMemoriesController, :search
+    post "/onboarding/validate", OnboardingController, :validate
   end
 end

@@ -21,7 +21,7 @@ defmodule SentientwaveAutomata.Matrix.ReconciliationWorker do
     result = Reconciler.reconcile()
 
     Logger.info(
-      "matrix_reconcile ok=#{length(result.ok)} failed=#{length(result.failed)} failed_items=#{inspect(result.failed)}"
+      "matrix_reconcile ok=#{length(result.ok)} failed=#{length(result.failed)} failed_items=#{inspect(result.failed, pretty: false, limit: 20)}"
     )
 
     schedule_reconcile(interval_ms())

@@ -160,6 +160,10 @@ config :sentientwave_automata,
   temporal_address: temporal_address
 
 if config_env() == :prod do
+  endpoint_host = System.get_env("PHX_HOST", "example.com")
+  endpoint_scheme = System.get_env("PHX_URL_SCHEME", "https")
+  endpoint_port = String.to_integer(System.get_env("PHX_URL_PORT", "443"))
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -190,6 +194,7 @@ if config_env() == :prod do
       """
 
   config :sentientwave_automata_web, SentientwaveAutomataWeb.Endpoint,
+    url: [host: endpoint_host, scheme: endpoint_scheme, port: endpoint_port],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
