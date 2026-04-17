@@ -14,6 +14,7 @@ config :sentientwave_automata, SentientwaveAutomata.Repo,
   pool_size: System.schedulers_online() * 2
 
 config :sentientwave_automata, background_workers_enabled: false
+config :sentientwave_automata_temporal, bootstrap_enabled: false
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

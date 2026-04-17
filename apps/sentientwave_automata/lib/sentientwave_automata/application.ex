@@ -10,6 +10,7 @@ defmodule SentientwaveAutomata.Application do
     children =
       [
         SentientwaveAutomata.Repo,
+        SentientwaveAutomata.RuntimeValidator,
         {DNSCluster,
          query: Application.get_env(:sentientwave_automata, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SentientwaveAutomata.PubSub}

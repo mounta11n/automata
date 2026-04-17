@@ -32,48 +32,52 @@ defmodule SentientwaveAutomata.Settings.BootstrapWorker do
   end
 
   defp maybe_grant_automata_privileged_tools do
-    localpart =
-      System.get_env("MATRIX_AGENT_USER", "automata")
-      |> to_string()
-      |> String.trim()
-      |> String.downcase()
-
-    with {:ok, agent} <-
-           Agents.upsert_agent(%{
-             slug: localpart,
-             kind: :agent,
-             display_name: "Agent #{localpart}",
-             matrix_localpart: localpart,
-             status: :active,
-             metadata: %{source: "bootstrap_worker"}
-           }) do
-      _ =
-        Agents.upsert_agent_wallet(agent.id, %{
-          kind: "personal",
-          status: "active",
-          matrix_credentials: %{
-            localpart: localpart,
-            mxid: "@#{localpart}:#{System.get_env("MATRIX_HOMESERVER_DOMAIN", "localhost")}",
-            password: System.get_env("MATRIX_AGENT_PASSWORD", ""),
-            homeserver_url: System.get_env("MATRIX_URL", "http://localhost:8008")
-          },
-          metadata: %{source: "bootstrap_worker"}
-        })
-
-      _ =
-        grant_tool(agent.id, "system_directory_admin", %{
-          "level" => "system"
-        })
-
-      _ =
-        grant_tool(agent.id, "run_shell", %{
-          "level" => "system",
-          "mode" => "arbitrary_command"
-        })
-
+    if not Settings.bootstrap_privileged_tools?() do
       :ok
     else
-      _ -> :ok
+      localpart =
+        System.get_env("MATRIX_AGENT_USER", "automata")
+        |> to_string()
+        |> String.trim()
+        |> String.downcase()
+
+      with {:ok, agent} <-
+             Agents.upsert_agent(%{
+               slug: localpart,
+               kind: :agent,
+               display_name: "Agent #{localpart}",
+               matrix_localpart: localpart,
+               status: :active,
+               metadata: %{source: "bootstrap_worker"}
+             }) do
+        _ =
+          Agents.upsert_agent_wallet(agent.id, %{
+            kind: "personal",
+            status: "active",
+            matrix_credentials: %{
+              localpart: localpart,
+              mxid: "@#{localpart}:#{System.get_env("MATRIX_HOMESERVER_DOMAIN", "localhost")}",
+              password: System.get_env("MATRIX_AGENT_PASSWORD", ""),
+              homeserver_url: System.get_env("MATRIX_URL", "http://localhost:8008")
+            },
+            metadata: %{source: "bootstrap_worker"}
+          })
+
+        _ =
+          grant_tool(agent.id, "system_directory_admin", %{
+            "level" => "system"
+          })
+
+        _ =
+          grant_tool(agent.id, "run_shell", %{
+            "level" => "system",
+            "mode" => "arbitrary_command"
+          })
+
+        :ok
+      else
+        _ -> :ok
+      end
     end
   end
 

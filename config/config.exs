@@ -9,18 +9,33 @@
 # move said applications out of the umbrella.
 import Config
 
+default_matrix_adapter =
+  if config_env() == :prod do
+    SentientwaveAutomata.Adapters.Matrix.Synapse
+  else
+    SentientwaveAutomata.Adapters.Matrix.Local
+  end
+
+default_embedding_provider =
+  if config_env() == :prod do
+    SentientwaveAutomata.Agents.Embedding.OpenAI
+  else
+    SentientwaveAutomata.Agents.Embedding.Local
+  end
+
 # Configure Mix tasks and generators
 config :sentientwave_automata,
   ecto_repos: [SentientwaveAutomata.Repo],
+  environment: config_env(),
   edition: :community,
-  matrix_adapter: SentientwaveAutomata.Adapters.Matrix.Local,
+  matrix_adapter: default_matrix_adapter,
   temporal_adapter: SentientwaveAutomata.Adapters.Temporal.Runtime,
   temporal_cluster: :automata,
   temporal_namespace: "default",
   temporal_workflow_task_queue: "automata-workflows",
   temporal_activity_task_queue: "automata-activities",
   temporal_worker_identity_prefix: "automata",
-  embedding_provider: SentientwaveAutomata.Agents.Embedding.Local,
+  embedding_provider: default_embedding_provider,
   embedding_dim: 64,
   agent_skills_path: "skills"
 

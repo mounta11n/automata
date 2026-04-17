@@ -5,6 +5,7 @@ defmodule SentientwaveAutomataWeb.AdminAuth do
 
   import Plug.Conn
 
+  alias SentientwaveAutomata.RuntimeConfig
   alias SentientwaveAutomata.System.Status
 
   @session_key :automata_admin_authenticated
@@ -28,9 +29,18 @@ defmodule SentientwaveAutomataWeb.AdminAuth do
 
   @spec expected_password() :: String.t()
   def expected_password do
-    System.get_env("AUTOMATA_WEB_ADMIN_PASSWORD") ||
-      matrix_admin_password() ||
-      ""
+    explicit_password = System.get_env("AUTOMATA_WEB_ADMIN_PASSWORD", "") |> String.trim()
+
+    cond do
+      explicit_password != "" ->
+        explicit_password
+
+      RuntimeConfig.production?() ->
+        ""
+
+      true ->
+        matrix_admin_password() || ""
+    end
   end
 
   @spec authenticate(String.t() | nil, String.t() | nil) :: boolean()

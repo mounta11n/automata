@@ -16,31 +16,48 @@ defmodule SentientwaveAutomata.Orchestrator do
       ) do
     with :ok <- validate_payload(attrs),
          true <-
-           Entitlements.allowed?(:basic_orchestration, attrs) || {:error, :feature_not_enabled},
-         {:ok, workflow} <- create_workflow(attrs),
-         {:ok, temporal} <-
-           temporal_adapter().start_workflow(
-             "conversation_workflow",
-             %{
-               workflow_id: workflow.workflow_id,
-               workflow_summary_id: workflow.id,
-               attrs: attrs
-             },
-             workflow_id: workflow.workflow_id
-           ),
-         {:ok, updated_workflow} <-
-           update_workflow(workflow, %{
-             run_id: temporal.run_id,
-             status: temporal.status,
-             metadata:
-               Map.merge(workflow.metadata || %{}, %{
-                 "temporal_source" => "temporal_sdk",
-                 "room_id" => room_id,
-                 "objective" => objective,
-                 "requested_by" => requested_by
-               })
-           }) do
-      {:ok, updated_workflow}
+           Entitlements.allowed?(:basic_orchestration, attrs) || {:error, :feature_not_enabled} do
+      case create_workflow(attrs) do
+        {:ok, workflow} ->
+          case temporal_adapter().start_workflow(
+                 "conversation_workflow",
+                 %{
+                   workflow_id: workflow.workflow_id,
+                   workflow_summary_id: workflow.id,
+                   attrs: attrs
+                 },
+                 workflow_id: workflow.workflow_id
+               ) do
+            {:ok, temporal} ->
+              update_workflow(workflow, %{
+                run_id: temporal.run_id,
+                status: temporal.status,
+                metadata:
+                  Map.merge(workflow.metadata || %{}, %{
+                    "temporal_source" => "temporal_sdk",
+                    "room_id" => room_id,
+                    "objective" => objective,
+                    "requested_by" => requested_by
+                  })
+              })
+
+            {:error, reason} ->
+              _ =
+                update_workflow(workflow, %{
+                  status: :failed,
+                  error: %{"reason" => inspect(reason)},
+                  metadata:
+                    Map.merge(workflow.metadata || %{}, %{
+                      "temporal_start_failed" => true
+                    })
+                })
+
+              {:error, reason}
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     else
       {:error, reason} -> {:error, reason}
     end

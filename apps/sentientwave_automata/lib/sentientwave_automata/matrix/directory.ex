@@ -8,7 +8,18 @@ defmodule SentientwaveAutomata.Matrix.Directory do
   alias SentientwaveAutomata.Matrix.DirectoryUser
   alias SentientwaveAutomata.Repo
 
-  @type user :: %{
+  @type public_user :: %{
+          id: String.t(),
+          localpart: String.t(),
+          kind: :person | :agent | :service,
+          display_name: String.t(),
+          admin: boolean(),
+          metadata: map(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
+  @type user_with_password :: %{
           id: String.t(),
           localpart: String.t(),
           kind: :person | :agent | :service,
@@ -20,14 +31,24 @@ defmodule SentientwaveAutomata.Matrix.Directory do
           updated_at: DateTime.t() | nil
         }
 
-  @spec list_users(keyword()) :: [user()]
+  @spec list_users(keyword()) :: [public_user()]
   def list_users(opts \\ []) do
+    list_user_records(opts)
+    |> Enum.map(&to_public_user/1)
+  end
+
+  @spec list_users_with_passwords(keyword()) :: [user_with_password()]
+  def list_users_with_passwords(opts \\ []) do
+    list_user_records(opts)
+    |> Enum.map(&to_user_with_password/1)
+  end
+
+  defp list_user_records(opts) do
     DirectoryUser
     |> maybe_filter_kind(opts)
     |> maybe_search(opts)
     |> order_by([u], asc: u.localpart)
     |> Repo.all()
-    |> Enum.map(&to_public_user/1)
   end
 
   @spec count_users(keyword()) :: non_neg_integer()
@@ -38,11 +59,19 @@ defmodule SentientwaveAutomata.Matrix.Directory do
     |> Repo.aggregate(:count, :id)
   end
 
-  @spec get_user(String.t()) :: user() | nil
+  @spec get_user(String.t()) :: public_user() | nil
   def get_user(localpart) do
     case get_user_record(localpart) do
       nil -> nil
       user -> to_public_user(user)
+    end
+  end
+
+  @spec get_user_with_password(String.t()) :: user_with_password() | nil
+  def get_user_with_password(localpart) do
+    case get_user_record(localpart) do
+      nil -> nil
+      user -> to_user_with_password(user)
     end
   end
 
@@ -51,7 +80,7 @@ defmodule SentientwaveAutomata.Matrix.Directory do
     Repo.get_by(DirectoryUser, localpart: normalize_localpart(localpart))
   end
 
-  @spec upsert_user(map(), keyword()) :: {:ok, user()} | {:error, map()}
+  @spec upsert_user(map(), keyword()) :: {:ok, user_with_password()} | {:error, map()}
   def upsert_user(attrs, opts \\ []) when is_map(attrs) do
     localpart = attrs |> fetch_attr(:localpart) |> normalize_localpart()
     changeset_opts = [min_password_length: Keyword.get(opts, :min_password_length, 12)]
@@ -70,7 +99,7 @@ defmodule SentientwaveAutomata.Matrix.Directory do
       end
 
     case Repo.insert_or_update(changeset) do
-      {:ok, user} -> {:ok, to_public_user(user)}
+      {:ok, user} -> {:ok, to_user_with_password(user)}
       {:error, changeset} -> {:error, translate_errors(changeset)}
     end
   end
@@ -206,6 +235,19 @@ defmodule SentientwaveAutomata.Matrix.Directory do
   end
 
   defp to_public_user(%DirectoryUser{} = user) do
+    %{
+      id: "#{user.kind}:#{user.localpart}",
+      localpart: user.localpart,
+      kind: user.kind,
+      display_name: user.display_name || user.localpart,
+      admin: user.admin,
+      metadata: user.metadata || %{},
+      inserted_at: user.inserted_at,
+      updated_at: user.updated_at
+    }
+  end
+
+  defp to_user_with_password(%DirectoryUser{} = user) do
     %{
       id: "#{user.kind}:#{user.localpart}",
       localpart: user.localpart,

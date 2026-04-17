@@ -2,6 +2,11 @@ defmodule SentientwaveAutomataWeb.API.OnboardingControllerTest do
   use SentientwaveAutomataWeb.ConnCase
 
   describe "POST /api/v1/onboarding/validate" do
+    test "requires admin auth", %{conn: conn} do
+      conn = post(conn, ~p"/api/v1/onboarding/validate", %{"company_name" => "Acme"})
+      assert json_response(conn, 401)["error"] == "admin_auth_required"
+    end
+
     test "validates nested provisioning payload", %{conn: conn} do
       payload = %{
         "company" => %{
@@ -19,7 +24,12 @@ defmodule SentientwaveAutomataWeb.API.OnboardingControllerTest do
         "invites" => "@alice:acme.org,team@acme.org"
       }
 
-      conn = post(conn, ~p"/api/v1/onboarding/validate", payload)
+      conn =
+        conn
+        |> init_test_session(automata_admin_authenticated: true)
+        |> put_req_header("origin", "http://www.example.com")
+        |> post(~p"/api/v1/onboarding/validate", payload)
+
       body = json_response(conn, 200)
 
       assert body["data"]["company"]["key"] == "acme"
@@ -37,7 +47,12 @@ defmodule SentientwaveAutomataWeb.API.OnboardingControllerTest do
         "group" => %{"name" => "Platform Team"}
       }
 
-      conn = post(conn, ~p"/api/v1/onboarding/validate", payload)
+      conn =
+        conn
+        |> init_test_session(automata_admin_authenticated: true)
+        |> put_req_header("origin", "http://www.example.com")
+        |> post(~p"/api/v1/onboarding/validate", payload)
+
       body = json_response(conn, 422)
 
       assert body["errors"]["reason"] == "invalid_group"
@@ -52,7 +67,12 @@ defmodule SentientwaveAutomataWeb.API.OnboardingControllerTest do
         "invitees" => "alice,bob,@carol:matrix.acme.local"
       }
 
-      conn = post(conn, ~p"/api/v1/onboarding/validate", payload)
+      conn =
+        conn
+        |> init_test_session(automata_admin_authenticated: true)
+        |> put_req_header("origin", "http://www.example.com")
+        |> post(~p"/api/v1/onboarding/validate", payload)
+
       body = json_response(conn, 200)
 
       assert body["data"]["company_name"] == "Acme Corp"
@@ -63,7 +83,12 @@ defmodule SentientwaveAutomataWeb.API.OnboardingControllerTest do
     end
 
     test "returns validation errors for missing required fields", %{conn: conn} do
-      conn = post(conn, ~p"/api/v1/onboarding/validate", %{"company_name" => ""})
+      conn =
+        conn
+        |> init_test_session(automata_admin_authenticated: true)
+        |> put_req_header("origin", "http://www.example.com")
+        |> post(~p"/api/v1/onboarding/validate", %{"company_name" => ""})
+
       body = json_response(conn, 422)
 
       assert body["errors"]["group_name"] == "is required"

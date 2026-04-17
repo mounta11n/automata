@@ -4,14 +4,13 @@ defmodule SentientwaveAutomata.Governance.Room do
   """
 
   @connection_info_path "/data/connection-info.txt"
-  @default_room_id "!governance:localhost"
   @default_room_alias "governance"
 
-  @spec room_id() :: String.t()
+  @spec room_id() :: String.t() | nil
   def room_id do
     connection_info()
-    |> Map.get(:governance_room_id, System.get_env("MATRIX_GOVERNANCE_ROOM_ID", @default_room_id))
-    |> normalize_value(@default_room_id)
+    |> Map.get(:governance_room_id, System.get_env("MATRIX_GOVERNANCE_ROOM_ID", ""))
+    |> normalize_value()
   end
 
   @spec room_alias() :: String.t()
@@ -27,7 +26,11 @@ defmodule SentientwaveAutomata.Governance.Room do
   @spec room?(String.t()) :: boolean()
   def room?(room_id) when is_binary(room_id) do
     trimmed = String.trim(room_id)
-    trimmed != "" and trimmed == room_id()
+
+    case room_id() do
+      nil -> false
+      configured_room_id -> trimmed != "" and trimmed == configured_room_id
+    end
   end
 
   def room?(_room_id), do: false
@@ -86,12 +89,19 @@ defmodule SentientwaveAutomata.Governance.Room do
     |> List.first()
   end
 
-  defp normalize_value(value, default) do
+  defp normalize_value(value) do
     value
     |> to_string()
     |> String.trim()
     |> case do
-      "" -> default
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_value(value, default) do
+    case normalize_value(value) do
+      nil -> default
       trimmed -> trimmed
     end
   end

@@ -6,6 +6,7 @@ defmodule SentientwaveAutomata.Settings do
   import Ecto.Query, warn: false
 
   alias SentientwaveAutomata.Repo
+  alias SentientwaveAutomata.RuntimeConfig
   alias SentientwaveAutomata.Settings.LLMProviderConfig
   alias SentientwaveAutomata.Settings.ToolConfig
 
@@ -52,7 +53,7 @@ defmodule SentientwaveAutomata.Settings do
   @spec llm_provider_effective() :: map()
   def llm_provider_effective do
     config = get_default_llm_provider_config()
-    env_provider = System.get_env("AUTOMATA_LLM_PROVIDER", "local")
+    env_provider = System.get_env("AUTOMATA_LLM_PROVIDER", RuntimeConfig.default_llm_provider())
     provider = config_value(config, :provider, env_provider)
     defaults = llm_provider_defaults(provider)
 
@@ -194,7 +195,7 @@ defmodule SentientwaveAutomata.Settings do
   @spec ensure_default_provider_from_env() :: :ok
   def ensure_default_provider_from_env do
     if list_llm_provider_configs() == [] do
-      env_provider = System.get_env("AUTOMATA_LLM_PROVIDER", "local")
+      env_provider = System.get_env("AUTOMATA_LLM_PROVIDER", RuntimeConfig.default_llm_provider())
       defaults = llm_provider_defaults(env_provider)
 
       _ =
@@ -286,27 +287,37 @@ defmodule SentientwaveAutomata.Settings do
         "enabled" => true
       })
 
-    _ =
-      ensure_tool_config(%{
-        "name" => "System Directory Admin",
-        "slug" => "system-directory-admin",
-        "tool_name" => "system_directory_admin",
-        "base_url" => "",
-        "api_token" => "",
-        "enabled" => true
-      })
+    if bootstrap_privileged_tools?() do
+      _ =
+        ensure_tool_config(%{
+          "name" => "System Directory Admin",
+          "slug" => "system-directory-admin",
+          "tool_name" => "system_directory_admin",
+          "base_url" => "",
+          "api_token" => "",
+          "enabled" => true
+        })
 
-    _ =
-      ensure_tool_config(%{
-        "name" => "Run Shell",
-        "slug" => "run-shell",
-        "tool_name" => "run_shell",
-        "base_url" => "",
-        "api_token" => "",
-        "enabled" => true
-      })
+      _ =
+        ensure_tool_config(%{
+          "name" => "Run Shell",
+          "slug" => "run-shell",
+          "tool_name" => "run_shell",
+          "base_url" => "",
+          "api_token" => "",
+          "enabled" => true
+        })
+    end
 
     :ok
+  end
+
+  @spec bootstrap_privileged_tools?() :: boolean()
+  def bootstrap_privileged_tools? do
+    case System.get_env("AUTOMATA_BOOTSTRAP_PRIVILEGED_TOOLS") do
+      nil -> not RuntimeConfig.production?()
+      value -> value in ["1", "true", "TRUE", "yes", "YES"]
+    end
   end
 
   defp ensure_at_least_one_default! do

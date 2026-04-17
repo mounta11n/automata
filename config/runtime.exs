@@ -10,10 +10,77 @@ import Config
 config :sentientwave_automata_web, SentientwaveAutomataWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+truthy? = fn value -> value in ["1", "true", "TRUE", "yes", "YES", true] end
+allow_local_fallbacks = truthy?.(System.get_env("AUTOMATA_ALLOW_LOCAL_FALLBACKS", "false"))
+local_fallbacks_allowed = config_env() != :prod or allow_local_fallbacks
+
+default_matrix_adapter_name =
+  if config_env() == :prod and not allow_local_fallbacks do
+    "synapse"
+  else
+    "local"
+  end
+
+matrix_adapter_name =
+  System.get_env("MATRIX_ADAPTER", default_matrix_adapter_name)
+  |> to_string()
+  |> String.trim()
+  |> String.downcase()
+
 matrix_adapter =
-  case System.get_env("MATRIX_ADAPTER", "local") do
-    "synapse" -> SentientwaveAutomata.Adapters.Matrix.Synapse
-    _ -> SentientwaveAutomata.Adapters.Matrix.Local
+  case matrix_adapter_name do
+    "synapse" ->
+      SentientwaveAutomata.Adapters.Matrix.Synapse
+
+    "local" when local_fallbacks_allowed ->
+      SentientwaveAutomata.Adapters.Matrix.Local
+
+    "local" ->
+      raise "MATRIX_ADAPTER=local is disabled in production unless AUTOMATA_ALLOW_LOCAL_FALLBACKS=true"
+
+    other ->
+      raise "unsupported MATRIX_ADAPTER value: #{inspect(other)}"
+  end
+
+default_embedding_provider_name =
+  if config_env() == :prod and not allow_local_fallbacks do
+    "openai"
+  else
+    "local"
+  end
+
+embedding_provider_name =
+  System.get_env("AUTOMATA_EMBEDDING_PROVIDER", default_embedding_provider_name)
+  |> to_string()
+  |> String.trim()
+  |> String.downcase()
+
+embedding_provider =
+  case embedding_provider_name do
+    "openai" ->
+      SentientwaveAutomata.Agents.Embedding.OpenAI
+
+    "local" when local_fallbacks_allowed ->
+      SentientwaveAutomata.Agents.Embedding.Local
+
+    "local" ->
+      raise "AUTOMATA_EMBEDDING_PROVIDER=local is disabled in production unless AUTOMATA_ALLOW_LOCAL_FALLBACKS=true"
+
+    other ->
+      raise "unsupported AUTOMATA_EMBEDDING_PROVIDER value: #{inspect(other)}"
+  end
+
+default_llm_provider =
+  if config_env() == :prod and not allow_local_fallbacks do
+    "openai"
+  else
+    "local"
+  end
+
+default_llm_model =
+  case default_llm_provider do
+    "openai" -> "gpt-5.4"
+    _ -> "local-default"
   end
 
 parse_temporal_endpoint = fn address ->
@@ -26,7 +93,21 @@ parse_temporal_endpoint = fn address ->
   end
 end
 
-temporal_address = System.get_env("TEMPORAL_ADDRESS", "127.0.0.1:7233")
+temporal_address =
+  case {config_env(), System.get_env("TEMPORAL_ADDRESS")} do
+    {:prod, nil} ->
+      raise "TEMPORAL_ADDRESS is required in production"
+
+    {:prod, ""} ->
+      raise "TEMPORAL_ADDRESS is required in production"
+
+    {_, nil} ->
+      "127.0.0.1:7233"
+
+    {_, value} ->
+      value
+  end
+
 {temporal_host, temporal_port} = parse_temporal_endpoint.(temporal_address)
 temporal_namespace = System.get_env("TEMPORAL_NAMESPACE", "default")
 
@@ -61,20 +142,28 @@ config :sentientwave_automata,
   temporal_workflow_task_queue: temporal_workflow_task_queue,
   temporal_activity_task_queue: temporal_activity_task_queue,
   temporal_worker_identity_prefix: temporal_worker_identity_prefix,
+  allow_local_fallbacks: allow_local_fallbacks,
   deep_research_max_rounds:
     String.to_integer(System.get_env("AUTOMATA_DEEP_RESEARCH_MAX_ROUNDS", "2")),
   deep_research_max_queries_per_round:
     String.to_integer(System.get_env("AUTOMATA_DEEP_RESEARCH_MAX_QUERIES_PER_ROUND", "3")),
   deep_research_results_per_query:
     String.to_integer(System.get_env("AUTOMATA_DEEP_RESEARCH_RESULTS_PER_QUERY", "5")),
+  embedding_provider: embedding_provider,
+  embedding_provider_name: embedding_provider_name,
   embedding_dim: String.to_integer(System.get_env("AUTOMATA_EMBEDDING_DIM", "64")),
   agent_skills_path: System.get_env("AUTOMATA_SKILLS_PATH", "skills"),
-  llm_provider: System.get_env("AUTOMATA_LLM_PROVIDER", "local"),
-  llm_model: System.get_env("AUTOMATA_LLM_MODEL", "local-default"),
+  llm_provider: System.get_env("AUTOMATA_LLM_PROVIDER", default_llm_provider),
+  llm_model: System.get_env("AUTOMATA_LLM_MODEL", default_llm_model),
   llm_api_base: System.get_env("AUTOMATA_LLM_API_BASE", ""),
-  matrix_adapter: matrix_adapter
+  matrix_adapter: matrix_adapter,
+  temporal_address: temporal_address
 
 if config_env() == :prod do
+  endpoint_host = System.get_env("PHX_HOST", "example.com")
+  endpoint_scheme = System.get_env("PHX_URL_SCHEME", "https")
+  endpoint_port = String.to_integer(System.get_env("PHX_URL_PORT", "443"))
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -105,6 +194,7 @@ if config_env() == :prod do
       """
 
   config :sentientwave_automata_web, SentientwaveAutomataWeb.Endpoint,
+    url: [host: endpoint_host, scheme: endpoint_scheme, port: endpoint_port],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

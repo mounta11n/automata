@@ -31,7 +31,8 @@ defmodule SentientwaveAutomata.GovernanceTest do
 
       assert {:ok, _assignment} = Governance.assign_role(role.id, member_record.id, %{})
 
-      assert [%{id: ^role.id}] = Governance.list_user_roles(member_record.id)
+      assert [%{id: assigned_role_id}] = Governance.list_user_roles(member_record.id)
+      assert assigned_role_id == role.id
 
       reference = "LAW-#{suffix}"
       proposal_room = "!governance:localhost"

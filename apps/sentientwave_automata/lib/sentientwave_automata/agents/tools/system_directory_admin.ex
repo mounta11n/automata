@@ -47,7 +47,8 @@ defmodule SentientwaveAutomata.Agents.Tools.SystemDirectoryAdmin do
 
     case action do
       "list_directory" ->
-        {:ok, %{"users" => Directory.list_users(), "count" => length(Directory.list_users())}}
+        users = Directory.list_users()
+        {:ok, %{"users" => users, "count" => length(users)}}
 
       "upsert_human" ->
         upsert_human(args)
@@ -86,7 +87,13 @@ defmodule SentientwaveAutomata.Agents.Tools.SystemDirectoryAdmin do
              admin: admin
            }),
          :ok <- SynapseAdmin.reconcile_user(user) do
-      {:ok, %{"result" => "human_upserted", "user" => user, "password_generated" => generated?}}
+      {:ok,
+       %{
+         "result" => "human_upserted",
+         "user" => public_user(user),
+         "password_generated" => generated?,
+         "generated_password" => generated_password(password, generated?)
+       }}
     end
   end
 
@@ -144,10 +151,11 @@ defmodule SentientwaveAutomata.Agents.Tools.SystemDirectoryAdmin do
       {:ok,
        %{
          "result" => "agent_hired",
-         "directory_user" => directory_user,
+         "directory_user" => public_user(directory_user),
          "agent_profile_id" => agent_profile.id,
          "wallet_id" => wallet.id,
-         "password_generated" => generated?
+         "password_generated" => generated?,
+         "generated_password" => generated_password(password, generated?)
        }}
     end
   end
@@ -234,7 +242,7 @@ defmodule SentientwaveAutomata.Agents.Tools.SystemDirectoryAdmin do
   end
 
   defp resolve_password(localpart) do
-    case Directory.get_user(localpart) do
+    case Directory.get_user_with_password(localpart) do
       %{password: existing} when is_binary(existing) and byte_size(existing) >= 12 ->
         {existing, false}
 
@@ -257,6 +265,11 @@ defmodule SentientwaveAutomata.Agents.Tools.SystemDirectoryAdmin do
   defp validate_password(_), do: {:error, :password_too_short}
   defp validate_room_id(value) when is_binary(value) and value != "", do: :ok
   defp validate_room_id(_), do: {:error, :missing_room_id}
+
+  defp public_user(user) when is_map(user), do: Map.delete(user, :password)
+
+  defp generated_password(password, true), do: password
+  defp generated_password(_password, false), do: nil
 
   defp normalize_localpart(value) do
     value
